@@ -5,6 +5,7 @@
     android:id="@+id/main"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
+    android:animateLayoutChanges="true"
     tools:context=".player.PlayerActivity">
 
     <androidx.media3.ui.PlayerView
@@ -15,6 +16,12 @@
         app:hide_on_touch="true"
         app:show_buffering="never"
         app:use_controller="false" />
+
+
+    <com.tomer.myflix.ui.views.GestureView
+        android:id="@+id/gestureView"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent" />
 
     <ImageView
         android:id="@+id/imgThumb"
@@ -38,6 +45,7 @@
             android:layout_marginStart="12dp"
             android:layout_marginTop="12dp"
             android:background="@drawable/ripple_round_bg"
+            android:contentDescription="@string/app_name"
             android:padding="12dp"
             android:src="@drawable/ic_back" />
 
@@ -59,8 +67,7 @@
     <LinearLayout
         android:id="@+id/llBottomControls"
         android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:visibility="visible"
+        android:layout_height="60dp"
         android:layout_marginBottom="8dp"
         app:layout_constraintBottom_toBottomOf="parent">
 
@@ -107,8 +114,8 @@
             android:layout_height="46dp"
             android:background="@drawable/ripple_round_bg"
             android:contentDescription="@string/app_name"
-            android:padding="2dp"
-            android:src="@drawable/ic_skip_prev"
+            android:padding="8dp"
+            android:src="@drawable/ic_back_5"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toStartOf="@+id/btPlay"
             app:layout_constraintHorizontal_bias="0.8"
@@ -121,8 +128,8 @@
             android:layout_height="46dp"
             android:background="@drawable/ripple_round_bg"
             android:contentDescription="@string/app_name"
-            android:padding="2dp"
-            android:src="@drawable/ic_skip_next"
+            android:padding="8dp"
+            android:src="@drawable/ic_forward_15"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintHorizontal_bias="0.2"
@@ -144,6 +151,55 @@
         android:id="@+id/seekBar"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:layout_constraintBottom_toTopOf="@id/llBottomControls" />
+        android:layout_marginHorizontal="52dp"
+        android:layout_marginBottom="68dp"
+        app:layout_constraintBottom_toBottomOf="parent" />
+
+    <TextView
+        android:id="@+id/tvTimerCurrent"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="2dp"
+        android:textColor="@color/white"
+        app:layout_constraintBottom_toTopOf="@+id/seekBar"
+        app:layout_constraintStart_toStartOf="@+id/seekBar" />
+
+    <TextView
+        android:id="@+id/tvTimerTotal"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginHorizontal="16dp"
+        android:layout_marginBottom="2dp"
+        android:textColor="@color/white"
+        app:layout_constraintBottom_toTopOf="@+id/seekBar"
+        app:layout_constraintEnd_toEndOf="@+id/seekBar" />
+
+
+    <LinearLayout
+        android:id="@+id/ll2xHelper"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:visibility="invisible"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_bias="0.08">
+
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/ic_x2" />
+
+        <Space
+            android:layout_width="10dp"
+            android:layout_height="10dp" />
+
+        <ImageView
+            android:layout_width="24dp"
+            android:layout_height="24dp"
+            android:src="@drawable/ic_fast_forward" />
+    </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>
