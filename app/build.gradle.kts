@@ -8,25 +8,25 @@ plugins {
 
 android {
     namespace = "com.tomer.myflix"
-    compileSdk = 34
+    compileSdk = 35
 
     defaultConfig {
         applicationId = "com.tomer.myflix"
         minSdk = 26
-        targetSdk = 34
+        targetSdk = 35
         versionCode = 1
         versionName = "1.0"
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
-        vectorDrawables {
-            useSupportLibrary = true
-        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = false
-            proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
+            proguardFiles(
+                getDefaultProguardFile("proguard-android-optimize.txt"),
+                "proguard-rules.pro"
+            )
         }
     }
     compileOptions {
@@ -39,11 +39,6 @@ android {
     buildFeatures {
         compose = true
         viewBinding = true
-    }
-    packaging {
-        resources {
-            excludes += "/META-INF/{AL2.0,LGPL2.1}"
-        }
     }
 }
 
@@ -60,8 +55,8 @@ dependencies {
 
     implementation(libs.coil)
     implementation(libs.gson)
-    implementation(libs.exo.player)
-    implementation(libs.exo.player.ui)
+    implementation(libs.exo.player.old)
+    implementation(libs.exo.player.old.ui)
 
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
@@ -84,4 +79,3 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 }
-
