@@ -53,15 +53,19 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
 
-    implementation(libs.coil)
+//    implementation(libs.coil)
+    implementation(libs.coil.compose)
     implementation(libs.gson)
     implementation(libs.exo.player.old)
     implementation(libs.exo.player.old.ui)
+    implementation(libs.exo.player.old.hls)
+    implementation(libs.exo.player.old.stream)
 
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
     implementation(libs.androidx.activity)
     implementation(libs.androidx.constraintlayout)
+    implementation("androidx.palette:palette-ktx:1.0.0")
 
     //Dagger-Hilt
     implementation(libs.dagger.hilt.android)

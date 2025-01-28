@@ -10,12 +10,15 @@ import android.graphics.Paint
 import android.graphics.RectF
 import android.util.AttributeSet
 import android.util.TypedValue
+import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
 import android.view.animation.AccelerateInterpolator
 import android.view.animation.OvershootInterpolator
+import androidx.annotation.ColorInt
 import androidx.core.animation.doOnEnd
 import androidx.core.graphics.withScale
+import com.tomer.myflix.player.performHaptic
 import kotlin.math.roundToInt
 
 class SeekBar : View {
@@ -115,6 +118,12 @@ class SeekBar : View {
 
     private var canTouch = true
 
+    fun setAccentColor(@ColorInt color: Int){
+        progColor = color
+        val col = Color.valueOf(color)
+        bufferColor = Color.argb(.4f,col.red(),col.green(),col.blue())
+        postInvalidate()
+    }
     fun showAnim() {
         canTouch = true
         if (hideAnim.isRunning) hideAnim.cancel()
@@ -145,6 +154,7 @@ class SeekBar : View {
 
     interface OnSeekChanged {
         fun onStartTrackingTouch()
+        fun onProgressChanged(prog:Float)
         fun onStopTrackingTouch(finalProg: Float)
     }
 
@@ -166,7 +176,7 @@ class SeekBar : View {
     private var touchX = 0f
     private var isTouching = false
 
-    @SuppressLint("ClickableViewAccessibility")
+    @SuppressLint("ClickableViewAccessibility", "InlinedApi")
     override fun onTouchEvent(event: MotionEvent): Boolean {
         if (!canTouch) return true
         if (event.action == MotionEvent.ACTION_DOWN) {
@@ -204,7 +214,10 @@ class SeekBar : View {
         } else if (event.action == MotionEvent.ACTION_MOVE) {
             handelX = (handelX + event.x - touchX).coerceIn(bgRect.left, bgRect.right)
             touchX = event.x
+            if (handelX == bgRect.left || handelX == bgRect.right)
+                performHaptic(HapticFeedbackConstants.CONFIRM)
             postInvalidate()
+            seekLis?.onProgressChanged((handelX - bgRect.left).div(bgRect.width()).coerceIn(0f, 1f))
         }
 
         return true

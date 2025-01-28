@@ -8,7 +8,7 @@
     android:animateLayoutChanges="true"
     tools:context=".player.PlayerActivity">
 
-    <androidx.media3.ui.PlayerView
+    <com.google.android.exoplayer2.ui.PlayerView
         android:id="@+id/exoPlayer"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
@@ -17,18 +17,18 @@
         app:show_buffering="never"
         app:use_controller="false" />
 
+    <ImageView
+        android:id="@+id/imgThumb"
+        android:contentDescription="@string/app_name"
+        android:scaleType="centerCrop"
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"/>
 
     <com.tomer.myflix.ui.views.GestureView
         android:id="@+id/gestureView"
         android:layout_width="match_parent"
         android:layout_height="match_parent" />
 
-    <ImageView
-        android:id="@+id/imgThumb"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:contentDescription="@string/app_name"
-        android:scaleType="centerCrop" />
 
     <LinearLayout
         android:id="@+id/llTopBar"
@@ -54,9 +54,9 @@
             android:layout_width="0dp"
             android:layout_height="match_parent"
             android:layout_weight="1"
-            android:gravity="center"
+            android:gravity="bottom|center_horizontal"
             android:textColor="@color/white"
-            android:textSize="20sp" />
+            android:textSize="22sp" />
 
         <Space
             android:layout_width="42dp"
@@ -64,21 +64,45 @@
             android:layout_marginEnd="12dp" />
     </LinearLayout>
 
-    <LinearLayout
+    <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/llBottomControls"
         android:layout_width="match_parent"
-        android:layout_height="60dp"
-        android:layout_marginBottom="8dp"
+        android:layout_height="wrap_content"
         app:layout_constraintBottom_toBottomOf="parent">
 
+        <View
+            android:id="@+id/view"
+            android:layout_width="match_parent"
+            android:layout_height="60dp"
+            android:background="@drawable/gradient_top_bottom"
+            android:rotation="180"
+            app:layout_constraintBottom_toBottomOf="parent" />
+
         <ImageView
-            android:id="@+id/btFullScreen"
+            android:id="@+id/btAudio"
             android:layout_width="0dp"
             android:layout_height="42dp"
             android:layout_weight="1"
             android:contentDescription="@string/app_name"
-            android:src="@drawable/ic_expand" />
+            android:padding="6dp"
+            android:layout_marginBottom="12dp"
+            android:src="@drawable/ic_audio"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@id/btSubtitle"
+            app:layout_constraintTop_toTopOf="parent" />
 
+        <ImageView
+            android:id="@+id/btSubtitle"
+            android:layout_width="0dp"
+            android:layout_height="42dp"
+            android:layout_weight="1"
+            android:contentDescription="@string/app_name"
+            android:padding="6dp"
+            android:layout_marginBottom="12dp"
+            android:src="@drawable/ic_subtitle"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@id/btScaling"
+            app:layout_constraintTop_toTopOf="parent" />
 
         <ImageView
             android:id="@+id/btScaling"
@@ -86,9 +110,15 @@
             android:layout_height="42dp"
             android:layout_weight="1"
             android:contentDescription="@string/app_name"
-            android:src="@drawable/ic_stack" />
+            android:layout_marginBottom="12dp"
+            android:layout_marginEnd="28dp"
+            android:padding="6dp"
+            android:src="@drawable/ic_expand"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
 
-    </LinearLayout>
+    </androidx.constraintlayout.widget.ConstraintLayout>
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/llCenter"
@@ -97,11 +127,11 @@
 
         <ImageView
             android:id="@+id/btPlay"
-            android:layout_width="60dp"
-            android:layout_height="60dp"
+            android:layout_width="88dp"
+            android:layout_height="88dp"
             android:background="@drawable/ripple_round_bg"
             android:contentDescription="@string/app_name"
-            android:padding="8dp"
+            android:padding="14dp"
             android:src="@drawable/ic_play"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
@@ -110,11 +140,11 @@
 
         <ImageView
             android:id="@+id/btPrev"
-            android:layout_width="46dp"
-            android:layout_height="46dp"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
             android:background="@drawable/ripple_round_bg"
             android:contentDescription="@string/app_name"
-            android:padding="8dp"
+            android:padding="12dp"
             android:src="@drawable/ic_back_5"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toStartOf="@+id/btPlay"
@@ -124,11 +154,11 @@
 
         <ImageView
             android:id="@+id/btNext"
-            android:layout_width="46dp"
-            android:layout_height="46dp"
+            android:layout_width="52dp"
+            android:layout_height="52dp"
             android:background="@drawable/ripple_round_bg"
             android:contentDescription="@string/app_name"
-            android:padding="8dp"
+            android:padding="12dp"
             android:src="@drawable/ic_forward_15"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
@@ -136,12 +166,86 @@
             app:layout_constraintStart_toEndOf="@+id/btPlay"
             app:layout_constraintTop_toTopOf="parent" />
 
+        <LinearLayout
+            android:id="@+id/btQuality"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="12dp"
+            android:background="@drawable/chip_bg"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="6dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintVertical_bias="0.18">
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:contentDescription="@string/app_name"
+                android:src="@drawable/ic_hd"
+                app:tint="@color/white" />
+
+            <Space
+                android:layout_width="12dp"
+                android:layout_height="4dp" />
+
+            <TextView
+                android:id="@+id/tvQuality"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/dongle_bold"
+                android:text="AUTO"
+                android:textColor="@color/white"
+                android:textSize="24sp" />
+
+        </LinearLayout>
+
+        <LinearLayout
+            android:id="@+id/btSpeed"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginEnd="12dp"
+            android:background="@drawable/chip_bg"
+            android:gravity="center_vertical"
+            android:paddingHorizontal="12dp"
+            android:paddingVertical="6dp"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toStartOf="@id/btQuality"
+            app:layout_constraintTop_toTopOf="parent"
+            app:layout_constraintVertical_bias="0.18">
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:contentDescription="@string/app_name"
+                android:src="@drawable/ic_speed"
+                app:tint="@color/white" />
+
+            <Space
+                android:layout_width="12dp"
+                android:layout_height="4dp" />
+
+            <TextView
+                android:id="@+id/tvSpeed"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:fontFamily="@font/dongle_bold"
+                android:text="2.2x"
+                android:textColor="@color/white"
+                android:textSize="24sp" />
+
+        </LinearLayout>
+
     </androidx.constraintlayout.widget.ConstraintLayout>
 
     <ProgressBar
         android:id="@+id/progBuffering"
         android:layout_width="88dp"
         android:layout_height="88dp"
+        android:progressTint="@color/white"
+        android:background="@drawable/ripple_round_bg"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
@@ -180,6 +284,8 @@
         android:id="@+id/ll2xHelper"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:background="@drawable/chip_bg"
+        android:padding="8dp"
         android:visibility="invisible"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
@@ -201,5 +307,30 @@
             android:layout_height="24dp"
             android:src="@drawable/ic_fast_forward" />
     </LinearLayout>
+
+    <LinearLayout
+        android:id="@+id/llQuality"
+        android:layout_width="200dp"
+        android:layout_height="wrap_content"
+        android:layout_margin="12dp"
+        android:background="@drawable/chip_bg"
+        android:elevation="8dp"
+        android:orientation="vertical"
+        android:paddingVertical="12dp"
+        android:translationX="220dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
+
+    <LinearLayout
+        android:id="@+id/llSpeed"
+        android:layout_width="220dp"
+        android:layout_height="wrap_content"
+        android:layout_margin="12dp"
+        android:background="@drawable/chip_bg"
+        android:elevation="8dp"
+        android:orientation="vertical"
+        android:translationX="240dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>
