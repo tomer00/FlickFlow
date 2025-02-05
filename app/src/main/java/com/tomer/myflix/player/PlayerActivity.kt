@@ -22,12 +22,10 @@ import com.tomer.myflix.data.models.LinkPair
 import com.tomer.myflix.databinding.ActivityExoPlayerBinding
 import com.tomer.myflix.databinding.PanelSpeedBinding
 import com.tomer.myflix.databinding.TextQualityBinding
-import com.tomer.myflix.ui.views.GestureView
-import com.tomer.myflix.ui.views.SeekBar
+import com.tomer.myflix.presentation.ui.views.GestureView
+import com.tomer.myflix.presentation.ui.views.SeekBar
 import dagger.hilt.android.AndroidEntryPoint
-import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import java.util.Locale
 import kotlin.math.roundToInt
 import kotlin.math.roundToLong
@@ -42,8 +40,19 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
     private val diaSubtitle by lazy { genSubDia() }
 
     private val audioMan by lazy { this.getSystemService(AUDIO_SERVICE) as AudioManager }
+
+    //region LIFE CYCLES
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+
+        val model = intent.getStringExtra("data") ?: kotlin.run {
+            finish()
+            return
+        }
+
+        vm.setMovieData(model)
+
         enableEdgeToEdge()
         setContentView(b.root)
         b.exoPlayer.player = vm.exoPlayer
@@ -67,6 +76,8 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
         super.onBackPressed()
     }
 
+    //endregion LIFE CYCLES
+
     //region CLICK LISTENERS
 
     override fun onClick(v: View) {
@@ -75,13 +86,9 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
 
             b.btPlay.id -> {
                 vm.setPlayState()
-                if (vm.exoPlayer.isPlaying) {
+                if (vm.exoPlayer.isPlaying)
                     vm.exoPlayer.pause()
-                    b.btPlay.setImageResource(R.drawable.ic_play)
-                } else {
-                    vm.exoPlayer.play()
-                    b.btPlay.setImageResource(R.drawable.ic_pause)
-                }
+                else vm.exoPlayer.play()
             }
 
             b.btPrev.id -> vm.skipBackward(5_000)
@@ -89,7 +96,8 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
 
             b.btScaling.id -> vm.setNextScaleType()
             b.btAudio.id ->
-                if (vm.playerState.value!! == PlayingState.LOADED
+                if (
+                    vm.playerState.value!! == PlayingState.LOADED
                     || vm.playerState.value!! == PlayingState.PLAYING
                 )
                     diaAudio.show()
@@ -127,6 +135,12 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
     //region SETUP
 
     private fun setupObservers() {
+        vm.isPlaying.observe(this) { isPlay ->
+            b.btPlay.setImageResource(
+                if (isPlay) R.drawable.ic_pause
+                else R.drawable.ic_play
+            )
+        }
         vm.isControls.observe(this) {
             if (it) showUI()
             else hideUI()
