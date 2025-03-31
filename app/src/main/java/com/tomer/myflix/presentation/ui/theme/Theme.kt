@@ -1,4 +1,4 @@
-package com.tomer.myflix.ui.theme
+package com.tomer.myflix.presentation.ui.theme
 
 import android.app.Activity
 import android.os.Build

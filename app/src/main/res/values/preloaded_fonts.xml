@@ -2,5 +2,6 @@
 <resources>
     <array name="preloaded_fonts" translatable="false">
         <item>@font/dongle_bold</item>
+        <item>@font/quantico_bold_italic</item>
     </array>
 </resources>

@@ -21,7 +21,7 @@
             android:name=".player.PlayerActivity"
             android:exported="false" />
         <activity
-            android:name=".MainActivity"
+            android:name=".presentation.MainActivity"
             android:exported="true"
             android:theme="@style/Theme.FlickFlow">
             <intent-filter>

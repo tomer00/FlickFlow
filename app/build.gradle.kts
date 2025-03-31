@@ -53,13 +53,17 @@ dependencies {
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
 
-//    implementation(libs.coil)
+
+    implementation(libs.retrofit)
+    implementation(libs.okttp)
+    implementation(libs.retrofit.gson)
+
     implementation(libs.coil.compose)
     implementation(libs.gson)
-    implementation(libs.exo.player.old)
-    implementation(libs.exo.player.old.ui)
-    implementation(libs.exo.player.old.hls)
-    implementation(libs.exo.player.old.stream)
+
+    implementation(libs.exo.player)
+    implementation(libs.exo.player.ui)
+    implementation(libs.exo.player.hls)
 
     implementation(libs.androidx.appcompat)
     implementation(libs.material)
@@ -69,11 +73,12 @@ dependencies {
 
     //Dagger-Hilt
     implementation(libs.dagger.hilt.android)
+    implementation(libs.dagger.hilt.compose.navigation)
     kapt(libs.dagger.hilt.compiler)
 
     //Room
     implementation(libs.room)
-    kapt(libs.room)
+    kapt(libs.room.compiler)
 
     testImplementation(libs.junit)
     androidTestImplementation(libs.androidx.junit)
@@ -83,3 +88,14 @@ dependencies {
     debugImplementation(libs.androidx.ui.tooling)
     debugImplementation(libs.androidx.ui.test.manifest)
 }
+tasks.register<Copy>("copyApk") {
+
+    val apkFile = layout.buildDirectory.file("outputs/apk/release/app-release.apk")
+    val destDir = file("/home/tom/apks")
+    destDir.mkdirs()
+    from(apkFile)
+    into(destDir)
+    rename("app-release.apk", "${rootProject.name}.apk")
+}
+
+tasks.whenTaskAdded { if (name == "assembleRelease") { finalizedBy("copyApk") } }

@@ -1,47 +1,63 @@
 package com.tomer.myflix.player
 
-import android.annotation.SuppressLint
 import android.content.Context
 import android.util.Log
 import androidx.annotation.FloatRange
+import androidx.annotation.OptIn
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.google.android.exoplayer2.C
-import com.google.android.exoplayer2.ExoPlayer
-import com.google.android.exoplayer2.MediaItem
-import com.google.android.exoplayer2.PlaybackException
-import com.google.android.exoplayer2.Player
-import com.google.android.exoplayer2.Tracks
-import com.google.android.exoplayer2.trackselection.DefaultTrackSelector
-import com.google.android.exoplayer2.trackselection.MappingTrackSelector.MappedTrackInfo
-import com.google.android.exoplayer2.trackselection.TrackSelectionOverride
-import com.tomer.myflix.R
-import com.tomer.myflix.data.models.LinkPair
-import com.tomer.myflix.data.models.TimePair
-import com.tomer.myflix.ui.models.MoviePlayerModalUi
+import androidx.media3.common.C
+import androidx.media3.common.MediaItem
+import androidx.media3.common.PlaybackException
+import androidx.media3.common.Player
+import androidx.media3.common.TrackSelectionOverride
+import androidx.media3.common.util.UnstableApi
+import androidx.media3.exoplayer.ExoPlayer
+import androidx.media3.exoplayer.analytics.AnalyticsListener
+import androidx.media3.exoplayer.source.LoadEventInfo
+import androidx.media3.exoplayer.source.MediaLoadData
+import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
+import com.google.gson.Gson
+import com.tomer.myflix.data.local.repo.RepoMovies
+import com.tomer.myflix.data.local.repo.RepoSettings
+import com.tomer.myflix.data.local.repo.TrackType
+import com.tomer.myflix.presentation.ui.models.MoviePlayerModalUi
+import com.tomer.myflix.presentation.ui.models.TrackInfo
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import java.io.File
 import javax.inject.Inject
-import kotlin.math.roundToLong
 
+@UnstableApi
 @HiltViewModel
 class PlayerViewModel
 @Inject constructor(
     @ApplicationContext val appContext: Context,
+    private val repoMovies: RepoMovies,
+    private val repoSettings: RepoSettings,
 ) : ViewModel() {
-    @SuppressLint("UnsafeOptInUsageError")
     val trackSelector = DefaultTrackSelector(appContext)
+        .apply {
+            setParameters(
+                buildUponParameters()
+                    .setMaxVideoBitrate(Int.MAX_VALUE)
+                    .setForceHighestSupportedBitrate(true)
+                    .build()
+            )
+        }
     val exoPlayer = ExoPlayer.Builder(appContext)
         .setTrackSelector(trackSelector)
         .build()
 
     //region UI STATE
+
+    private val _isSkip = MutableLiveData(false)
+    val isSkip: LiveData<Boolean> = _isSkip
 
     private val _isControls = MutableLiveData(true)
     val isControls: LiveData<Boolean> = _isControls
@@ -49,8 +65,11 @@ class PlayerViewModel
     private val _isBuffering = MutableLiveData(true)
     val isBuffering: LiveData<Boolean> = _isBuffering
 
-    private val _isPlaying = MutableLiveData(PlayingState.INITIAL)
-    val playerState: LiveData<PlayingState> = _isPlaying
+    private val _playState = MutableLiveData(PlayingState.INITIAL)
+    val playerState: LiveData<PlayingState> = _playState
+
+    private val _isPlaying = MutableLiveData(false)
+    val isPlaying: LiveData<Boolean> = _isPlaying
 
     private val _seekBarPosition = MutableLiveData(0f to 0f)
     val seekBarPosition: LiveData<Pair<Float, Float>> = _seekBarPosition
@@ -58,267 +77,164 @@ class PlayerViewModel
     private val _timeText = MutableLiveData("00:00" to "00:00")
     val timeText: LiveData<Pair<String, String>> = _timeText
 
-    //region QUALITY SPEED
-
-    private val _isQuality = MutableLiveData<Boolean?>(null)
-    val isQuality: LiveData<Boolean?> = _isQuality
-
+    //region QUALITY SPEED AUDIO SUB
     private val _isSpeed = MutableLiveData<Boolean?>(null)
     val isSpeed: LiveData<Boolean?> = _isSpeed
 
-    fun changeQuality() {
-        _isQuality.postValue(_isQuality.value?.not() ?: true)
-    }
+    private val _isSidePanel = MutableLiveData<Pair<Int, List<TrackInfo>>>(null)
+    val isSidePanel: LiveData<Pair<Int, List<TrackInfo>>> = _isSidePanel
 
     fun changeSpeed() {
-        _isSpeed.postValue(_isSpeed.value?.not() ?: true)
+        _isSpeed.postValue(_isSpeed.value?.not() != false)
+    }
+
+    fun showSidePanel(type: Int) {
+        hideControls(0)
+        when (type) {
+            1 -> {
+                _isSidePanel.postValue(
+                    1 to getVideoTrackInfo(
+                        trackSelector.currentMappedTrackInfo!!,
+                        movieModel.videoTrack
+                    )
+                )
+            }
+
+            2 -> {
+                _isSidePanel.postValue(
+                    2 to getAudioTrackInfo(
+                        trackSelector.currentMappedTrackInfo!!,
+                        exoPlayer
+                    )
+                )
+            }
+
+            3 -> {
+                _isSidePanel.postValue(
+                    3 to getSubtitleTrackInfo(
+                        trackSelector.currentMappedTrackInfo!!,
+                        exoPlayer
+                    )
+                )
+            }
+        }
+    }
+
+    fun hideSidePanel() {
+        _isSidePanel.postValue(0 to listOf())
     }
 
     //endregion QUALITY SPEED
 
     //region :: SCALE TYPE
-
-    private val listDrs = listOf(R.drawable.ic_expand, R.drawable.ic_delete, R.drawable.ic_play)
     private val _scaleType = MutableLiveData(0)
     val scaleType: LiveData<Int> = _scaleType
 
+    private var scaleHideJob = viewModelScope.launch { }
+    private var currFitType = 0
     fun setNextScaleType() {
-        _scaleType.postValue(_scaleType.value?.plus(1)?.rem(listDrs.size))
-        exoPlayer.videoScalingMode = C.VIDEO_SCALING_MODE_DEFAULT
+        val nextScale = currFitType.plus(1).rem(3)
+        _scaleType.postValue(nextScale)
+        repoSettings.saveScaleType(nextScale)
+        currFitType = nextScale
+        scaleHideJob.cancel()
+        scaleHideJob = viewModelScope.launch {
+            delay(1000)
+            _scaleType.postValue(-1)
+        }
     }
 
     //endregion :: SCALE TYPE
 
-    var videoDuration = 0L
-
     var playSpeed = 1f
-    var movieModel: MoviePlayerModalUi = MoviePlayerModalUi(
-        name = "Bhool Bhuliyya",
-        links = listOf(
-            LinkPair(
-                "360 P",
-                "360 p Hindi 320MB",
-                "https://github.com/hindu744/qrator744/raw/refs/heads/main/t360.mp4"
-            ),
-            LinkPair(
-                "480 P",
-                "480 p Hindi 620MB",
-                "https://github.com/hindu744/qrator744/raw/refs/heads/main/t480.mp4"
-            ),
-            LinkPair(
-                "720 P",
-                "720 p Hindi 1.2 GB",
-                "https://github.com/hindu744/qrator744/raw/refs/heads/main/t720.mp4"
-            ),
-            LinkPair(
-                "1080 P",
-                "1080 p Hindi 2.4 GB",
-                "https://github.com/hindu744/qrator744/raw/refs/heads/main/t1080.mp4"
-            ),
-        ),
-        introTime = TimePair(12000, 24000),
-        "https://images.pexels.com/photos/440731/pexels-photo-440731.jpeg"
-    )
+    var colAccent = 0
+    private var retries = 0
 
     //endregion UI STATE
 
-    private var qua = "360"
-    private var totalTImeText = "00:00"
-
-
-    //region AUDIO TRACKS
-
-    data class TrackInfo(val groupIndex: Int, val trackIndex: Int, val language: String)
-
-    fun selectAudioTrack(trackInfo: TrackInfo?) {
-        val mappedTrackInfo = trackSelector.currentMappedTrackInfo ?: return
-        val audioTrackInfo = trackInfo ?: run {
-            trackSelector.setParameters(
-                trackSelector.buildUponParameters().setRendererDisabled(
-                    C.TRACK_TYPE_AUDIO, true
-                )
-            )
-            return
-        }
-        val rendererIndex = getAudioRendererIndex(mappedTrackInfo)
-        if (rendererIndex == C.INDEX_UNSET) return
-
-        val trackGroup =
-            mappedTrackInfo.getTrackGroups(rendererIndex).get(audioTrackInfo.groupIndex)
-        val override =
-            TrackSelectionOverride(trackGroup, audioTrackInfo.trackIndex)
-
-        val parameters = trackSelector.buildUponParameters()
-            .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
-            .setRendererDisabled(C.TRACK_TYPE_AUDIO, false)
-            .addOverride(override)
-            .build()
-
-        trackSelector.setParameters(parameters)
-    }
-
-    private fun getAudioRendererIndex(mappedTrackInfo: MappedTrackInfo): Int {
-        for (rendererIndex in 0 until mappedTrackInfo.rendererCount) {
-            if (exoPlayer.getRendererType(rendererIndex) == C.TRACK_TYPE_AUDIO) {
-                return rendererIndex
-            }
-        }
-        return C.INDEX_UNSET
-    }
-
-    fun getAudioTrackInfo(mappedTrackInfo: MappedTrackInfo): List<TrackInfo> {
-        val audioTrackInfoList = mutableListOf<TrackInfo>()
-        for (rendererIndex in 0 until mappedTrackInfo.rendererCount) {
-            if (mappedTrackInfo.getRendererType(rendererIndex) == C.TRACK_TYPE_AUDIO) {
-                val trackGroups = mappedTrackInfo.getTrackGroups(rendererIndex)
-                for (groupIndex in 0 until trackGroups.length) {
-                    val trackGroup = trackGroups.get(groupIndex)
-                    for (trackIndex in 0 until trackGroup.length) {
-                        val format = trackGroup.getFormat(trackIndex)
-                        var language = ""
-                        format.label?.let { language += "$it - " }
-                        language += getLanguageName(format.language)
-                        Log.d(
-                            "TAG--",
-                            "getAudioTrackInfo: IS SELE ${
-                                trackSelector.parameters.getSelectionOverride(
-                                    rendererIndex,
-                                    trackGroups
-                                )?.containsTrack(trackIndex) == true
-                            }"
-                        )
-                        audioTrackInfoList.add(TrackInfo(groupIndex, trackIndex, language))
-                    }
-                }
-            }
-        }
-        return audioTrackInfoList
-    }
-
-    //endregion AUDIO TRACKS
-
-    //region SUBTITLES
-
-
-    fun selectSubtitleTrack(trackInfo: TrackInfo?) {
-
-        val mappedTrackInfo = trackSelector.currentMappedTrackInfo ?: return
-        val subTitleTrackInfo = trackInfo ?: run {
-            trackSelector.setParameters(
-                trackSelector.buildUponParameters()
-                    .setRendererDisabled(C.TRACK_TYPE_VIDEO, true)
-            )
-            return
-        }
-        val rendererIndex = getSubtitleRendererIndex(mappedTrackInfo)
-        if (rendererIndex == C.INDEX_UNSET) return
-
-        val trackGroup =
-            mappedTrackInfo.getTrackGroups(rendererIndex).get(subTitleTrackInfo.groupIndex)
-        val override =
-            TrackSelectionOverride(trackGroup, subTitleTrackInfo.trackIndex)
-
-        val parameters = trackSelector.buildUponParameters()
-            .clearOverridesOfType(C.TRACK_TYPE_TEXT)
-            .setRendererDisabled(C.TRACK_TYPE_VIDEO, false)
-            .addOverride(override)
-            .build()
-
-        trackSelector.setParameters(parameters)
-    }
-
-    private fun getSubtitleRendererIndex(mappedTrackInfo: MappedTrackInfo): Int {
-        for (rendererIndex in 0 until mappedTrackInfo.rendererCount) {
-            if (exoPlayer.getRendererType(rendererIndex) == C.TRACK_TYPE_TEXT) {
-                return rendererIndex
-            }
-        }
-        return C.INDEX_UNSET
-    }
-
-    fun getSubtitleTrackInfo(mappedTrackInfo: MappedTrackInfo): List<TrackInfo> {
-
-        val subtitleTrackInfoList = mutableListOf<TrackInfo>()
-        for (rendererIndex in 0 until mappedTrackInfo.rendererCount) {
-            if (mappedTrackInfo.getRendererType(rendererIndex) == C.TRACK_TYPE_TEXT) {
-                val trackGroups = mappedTrackInfo.getTrackGroups(rendererIndex)
-                for (groupIndex in 0 until trackGroups.length) {
-                    val trackGroup = trackGroups.get(groupIndex)
-                    for (trackIndex in 0 until trackGroup.length) {
-                        val format = trackGroup.getFormat(trackIndex)
-                        var language = ""
-                        format.label?.let { language += "$it - " }
-                        language += getLanguageName(format.language)
-                        subtitleTrackInfoList.add(TrackInfo(groupIndex, trackIndex, language))
-                    }
-                }
-            }
-        }
-        return subtitleTrackInfoList
-    }
-    //endregion SUBTITLES
-
-
     private var seekBarSyncJob = viewModelScope.launch { }
 
+
+    var movieModel: MoviePlayerModalUi = getSampleVideoModel()
+    fun setMovieData(id: String) {
+        movieModel = repoMovies.getMovieModelPresentation(id)!!
+        exoPlayer.apply {
+            setMediaItem(MediaItem.fromUri(getVideoLink(movieModel.id)))
+//            setMediaItem(MediaItem.fromUri("https://live.devhimu.in/files/aaa.m3u8"))
+            prepare()
+            playWhenReady = true
+        }
+        _scaleType.postValue(movieModel.scaleType)
+        currFitType = movieModel.scaleType
+        repoSettings.setCurrentId(id)
+        _seekBarPosition.postValue(movieModel.seekPosition to 0f)
+    }
+
     init {
-        val mediaItem =
-//            MediaItem.fromUri("https://this-is.ohnooo.site/d4c7591fcedc9c93e876cef4dd5e4f52/drivebot.sbs/Eagle%20(2024)%20{Hindi-Telugu}%20480p%20HEVC%20WEB-DL%20ESub%20[BollyFlix].mkv")
-//            MediaItem.fromUri("http://commondatastorage.googleapis.com/gtv-videos-bucket/sample/BigBuckBunny.mp4")
-            MediaItem.fromUri(
-                File(
-                    appContext.getExternalFilesDir("video"),
-                    "video.mkv"
-                ).absolutePath
-            )
-        exoPlayer.setMediaItem(mediaItem)
-        exoPlayer.prepare()
 
         //region EXO LIS
+
+        exoPlayer.addAnalyticsListener(object : AnalyticsListener {
+            override fun onLoadCompleted(
+                eventTime: AnalyticsListener.EventTime,
+                loadEventInfo: LoadEventInfo,
+                mediaLoadData: MediaLoadData
+            ) {
+                super.onLoadCompleted(eventTime, loadEventInfo, mediaLoadData)
+                Log.d(
+                    "TAG--",
+                    "${
+                        (loadEventInfo.responseHeaders["Cf-Cache-Status"] ?: "NaN").toString()
+                            .removePrefix("[").removeSuffix("]")
+                    } ${
+                        if (loadEventInfo.uri.toString().contains("himu.in"))
+                            loadEventInfo.uri.toString()
+                                .substring(loadEventInfo.uri.toString().indexOf(".in/") + 4)
+                        else loadEventInfo.uri.toString()
+                            .replace("https://storage.googleapis.com/flick-pub/", "")
+                    }"
+                )
+            }
+        })
 
         exoPlayer.addListener(object : Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
                 super.onPlayerError(error)
                 error.printStackTrace()
-                _isPlaying.postValue(PlayingState.ERROR)
+                retries++
+                if (retries == 3) {
+                    _playState.postValue(PlayingState.ERROR)
+                    _isBuffering.postValue(false)
+                } else exoPlayer.prepare()
             }
 
             override fun onPlaybackStateChanged(playbackState: Int) {
                 when (playbackState) {
                     Player.STATE_READY -> {
-                        if (_isPlaying.value == PlayingState.INITIAL) {
-                            totalTImeText = exoPlayer.duration.timeTextFromMs()
-                            _isPlaying.postValue(PlayingState.LOADED)
-                            if (videoDuration < 0L)
-                                exoPlayer.seekTo(
-                                    videoDuration.times(-1)
-                                        .div(1000f)
-                                        .times(exoPlayer.duration)
-                                        .roundToLong()
-                                )
-                            videoDuration = exoPlayer.duration
-
-                            hideControls(1_000)
-                        }
-                        _isBuffering.postValue(false)
-                        seekBarSyncJob = viewModelScope.launch {
-                            while (isActive) {
-                                delay(1000)
-                                _seekBarPosition.postValue(
-                                    exoPlayer.currentPosition.div(videoDuration.toFloat())
-                                            to
-                                            exoPlayer.bufferedPosition.div(videoDuration.toFloat())
-                                )
-                                _timeText.postValue(
-                                    exoPlayer.currentPosition.timeTextFromMs()
-                                            to
-                                            totalTImeText
+                        if (_playState.value == PlayingState.INITIAL) {
+                            movieModel.videoTrack?.let {
+                                selectVideoTrack(
+                                    it,
+                                    movieModel.videoTracks
                                 )
                             }
+                            movieModel.audioTrack?.let { selectAudioTrack(it) }
+                            movieModel.subtitleTrack?.let { selectSubtitleTrack(it) }
+                            exoPlayer.seekTo(
+                                movieModel.playedMs
+                            )
+                            _playState.postValue(PlayingState.LOADED)
+                                .also {
+                                    if (_isControls.value == false)
+                                        exoPlayer.play()
+                                }
                         }
+
+                        _isBuffering.postValue(false)
+                        seekBarSyncJob = createSeekBarSyncJob()
                     }
 
-                    Player.STATE_ENDED -> _isPlaying.postValue(PlayingState.ENDED)
+                    Player.STATE_ENDED -> _playState.postValue(PlayingState.ENDED)
 
                     Player.STATE_BUFFERING -> {
                         _isBuffering.postValue(true)
@@ -329,27 +245,31 @@ class PlayerViewModel
                 }
             }
 
-            override fun onTracksChanged(tracks: Tracks) {
-                super.onTracksChanged(tracks)
-                Log.d("TAG--", "onTracksChanged: $tracks")
+            override fun onIsPlayingChanged(isPlaying: Boolean) {
+                super.onIsPlayingChanged(isPlaying)
+                _isPlaying.postValue(isPlaying)
+                if (_playState.value != PlayingState.PLAYING) {
+                    _playState.postValue(PlayingState.PLAYING)
+                    if (exoPlayer.currentPosition >= movieModel.introTime.endTime) return
+                    if (exoPlayer.currentPosition < movieModel.introTime.startTime)
+                        viewModelScope.launch {
+                            delay(movieModel.introTime.startTime)
+                            _isSkip.postValue(true)
+                            delay(movieModel.introTime.endTime - movieModel.introTime.startTime)
+                            _isSkip.postValue(false)
+                        }
+                    else if (exoPlayer.currentPosition >= movieModel.introTime.startTime) {
+                        _isSkip.postValue(true)
+                        viewModelScope.launch {
+                            delay(movieModel.introTime.endTime - exoPlayer.currentPosition)
+                            _isSkip.postValue(false)
+                        }
+                    }
+                }
             }
-
         })
 
         //endregion EXO LIS
-    }
-
-    fun setQuality(pair: LinkPair) {
-        val item = if (pair.disName == "AUTO") {
-            val qualityCheck = checkPlayableQuality()
-            MediaItem.fromUri(getUrlFromQuality(qualityCheck, movieModel.links))
-        } else MediaItem.fromUri(pair.url)
-        exoPlayer.setMediaItem(item, exoPlayer.currentPosition)
-        exoPlayer.prepare()
-    }
-
-    private fun checkPlayableQuality(): Int {
-        return 360
     }
 
     override fun onCleared() {
@@ -372,6 +292,11 @@ class PlayerViewModel
     }
 
 
+    fun skipIntro() {
+        _isSkip.postValue(false)
+        exoPlayer.seekTo(movieModel.introTime.endTime)
+    }
+
     fun skipForward(millis: Long) {
         val currentPosition = exoPlayer.currentPosition
         val targetPosition = currentPosition + millis
@@ -391,10 +316,151 @@ class PlayerViewModel
     fun setPlaybackSpeed(@FloatRange(0.25, 4.0) speed: Float) {
         playSpeed = speed
         exoPlayer.setPlaybackSpeed(playSpeed)
+        repoSettings.savePlaybackSpeed(speed)
     }
 
     fun setPlayState() {
-        if (_isPlaying.value!! != PlayingState.PLAYING)
-            _isPlaying.postValue(PlayingState.PLAYING)
+        if (_playState.value!! != PlayingState.PLAYING)
+            _playState.postValue(PlayingState.PLAYING)
     }
+
+    @OptIn(UnstableApi::class)
+    fun savePlayBackState(seekPos: Float) {
+        repoSettings.savePlayedMsAndSeekPos(
+            exoPlayer.currentPosition,
+            seekPos
+        )
+    }
+
+    private fun createSeekBarSyncJob(): Job {
+        return viewModelScope.launch {
+            while (isActive) {
+                _seekBarPosition.postValue(
+                    exoPlayer.currentPosition.div(exoPlayer.duration.toFloat())
+                            to
+                            exoPlayer.bufferedPosition.div(exoPlayer.duration.toFloat())
+                )
+                _timeText.postValue(
+                    exoPlayer.currentPosition.timeTextFromMs()
+                            to
+                            exoPlayer.duration.timeTextFromMs()
+                )
+                delay(1000)
+            }
+        }
+    }
+
+    //region TRACK SELECTION
+
+    //region VIDEO TRACKS
+
+    fun selectVideoTrack(trackInfo: TrackInfo, size: Int) {
+        Log.d("TAG--", "selectVideoTrack: \n$trackInfo")
+        _isSidePanel.postValue(0 to listOf())
+        movieModel.videoTrack = trackInfo
+        repoSettings.saveTrackInfo(TrackType.VIDEO, trackInfo)
+        val mappedTrackInfo = trackSelector.currentMappedTrackInfo ?: return
+        val videoTrackInfo = trackInfo
+        if (trackInfo.trackIndex == -1) {
+            trackSelector.setParameters(
+                trackSelector.buildUponParameters()
+                    .clearOverridesOfType(C.TRACK_TYPE_VIDEO)
+                    .setMaxVideoBitrate(Int.MAX_VALUE)
+                    .setForceHighestSupportedBitrate(true)
+                    .build()
+            )
+            return
+        }
+        val rendererIndex = getVideoRendererIndex(mappedTrackInfo, exoPlayer)
+        if (rendererIndex == C.INDEX_UNSET) return
+
+        val trackGroup =
+            mappedTrackInfo.getTrackGroups(rendererIndex).get(videoTrackInfo.groupIndex)
+        val override =
+            TrackSelectionOverride(trackGroup, size - videoTrackInfo.trackIndex)
+
+        val parameters = trackSelector.buildUponParameters()
+            .clearOverridesOfType(C.TRACK_TYPE_VIDEO)
+            .addOverride(override)
+            .build()
+
+        trackSelector.setParameters(parameters)
+    }
+
+    //endregion VIDEO TRACKS
+
+    //region AUDIO TRACKS
+
+    fun selectAudioTrack(trackInfo: TrackInfo?) {
+        _isSidePanel.postValue(0 to listOf())
+        movieModel.audioTrack = trackInfo
+        repoSettings.saveTrackInfo(TrackType.AUDIO, trackInfo)
+        val mappedTrackInfo = trackSelector.currentMappedTrackInfo ?: return
+        val audioTrackInfo = trackInfo ?: run {
+            trackSelector.setParameters(
+                trackSelector.buildUponParameters().setRendererDisabled(
+                    C.TRACK_TYPE_AUDIO, true
+                )
+            )
+            return
+        }
+        val rendererIndex = getAudioRendererIndex(mappedTrackInfo, exoPlayer)
+        if (rendererIndex == C.INDEX_UNSET) return
+
+        val trackGroup =
+            mappedTrackInfo.getTrackGroups(rendererIndex).get(audioTrackInfo.groupIndex)
+        val override =
+            TrackSelectionOverride(trackGroup, audioTrackInfo.trackIndex)
+
+        val parameters = trackSelector.buildUponParameters()
+            .clearOverridesOfType(C.TRACK_TYPE_AUDIO)
+            .setRendererDisabled(C.TRACK_TYPE_AUDIO, false)
+            .addOverride(override)
+            .build()
+
+        trackSelector.setParameters(parameters)
+    }
+
+    //endregion AUDIO TRACKS
+
+    //region SUBTITLES
+
+
+    @OptIn(UnstableApi::class)
+    fun selectSubtitleTrack(trackInfo: TrackInfo?) {
+        _isSidePanel.postValue(0 to listOf())
+        movieModel.subtitleTrack = trackInfo
+        repoSettings.saveTrackInfo(TrackType.SUBTITLE, trackInfo)
+        val mappedTrackInfo = trackSelector.currentMappedTrackInfo ?: return
+        val subTitleTrackInfo = trackInfo ?: run {
+            trackSelector.setParameters(
+                trackSelector.buildUponParameters()
+                    .setRendererDisabled(C.TRACK_TYPE_VIDEO, true)
+            )
+            return
+        }
+        val rendererIndex = getSubtitleRendererIndex(mappedTrackInfo, exoPlayer)
+        if (rendererIndex == C.INDEX_UNSET) return
+
+        val trackGroup =
+            mappedTrackInfo.getTrackGroups(rendererIndex).get(subTitleTrackInfo.groupIndex)
+        val override =
+            TrackSelectionOverride(trackGroup, subTitleTrackInfo.trackIndex)
+
+        val parameters = trackSelector.buildUponParameters()
+            .clearOverridesOfType(C.TRACK_TYPE_TEXT)
+            .setRendererDisabled(C.TRACK_TYPE_VIDEO, false)
+            .addOverride(override)
+            .build()
+
+        Log.d("TAG--", "selectSubtitleTrack: ${trackInfo.language}")
+
+        trackSelector.setParameters(parameters)
+    }
+
+
+    //endregion SUBTITLES
+
+    //endregion TRACK SELECTION
+
 }
