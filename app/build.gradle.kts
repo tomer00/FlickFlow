@@ -64,6 +64,7 @@ dependencies {
     implementation(libs.exo.player)
     implementation(libs.exo.player.ui)
     implementation(libs.exo.player.hls)
+    implementation(libs.exo.player.http)
 
     implementation(libs.androidx.appcompat)
     implementation(libs.material)

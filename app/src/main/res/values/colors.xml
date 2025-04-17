@@ -16,4 +16,5 @@
     <color name="primary_text">#070f13</color>
     <color name="secondary_text">#757575</color>
     <color name="error">#B00020</color>
+    <color name="trans">#00FFFFFF</color>
 </resources>
