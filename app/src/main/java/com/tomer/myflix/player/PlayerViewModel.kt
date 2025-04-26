@@ -14,16 +14,17 @@ import androidx.media3.common.PlaybackException
 import androidx.media3.common.Player
 import androidx.media3.common.TrackSelectionOverride
 import androidx.media3.common.util.UnstableApi
+import androidx.media3.datasource.okhttp.OkHttpDataSource
 import androidx.media3.exoplayer.ExoPlayer
-import androidx.media3.exoplayer.analytics.AnalyticsListener
-import androidx.media3.exoplayer.source.LoadEventInfo
-import androidx.media3.exoplayer.source.MediaLoadData
+import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
-import com.google.gson.Gson
+import com.tomer.myflix.data.local.file_cache.CacheInterceptor
 import com.tomer.myflix.data.local.repo.RepoMovies
 import com.tomer.myflix.data.local.repo.RepoSettings
 import com.tomer.myflix.data.local.repo.TrackType
-import com.tomer.myflix.presentation.ui.models.MoviePlayerModalUi
+import com.tomer.myflix.presentation.ui.models.DtoPlayerView
+import com.tomer.myflix.presentation.ui.models.ModelPLayerUI
+import com.tomer.myflix.presentation.ui.models.PlayingType
 import com.tomer.myflix.presentation.ui.models.TrackInfo
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
@@ -31,6 +32,7 @@ import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import okhttp3.OkHttpClient
 import javax.inject.Inject
 
 @UnstableApi
@@ -50,10 +52,26 @@ class PlayerViewModel
                     .build()
             )
         }
-    val exoPlayer = ExoPlayer.Builder(appContext)
-        .setTrackSelector(trackSelector)
-        .build()
+    val cacheInterceptor = CacheInterceptor(appContext)
+    val exoPlayer = createExoPlayer()
 
+
+    private fun createExoPlayer(): ExoPlayer {
+
+        val okHttpClient = OkHttpClient.Builder()
+            .addInterceptor(cacheInterceptor)
+            .build()
+
+        val okHttpDataSourceFactory = OkHttpDataSource.Factory(okHttpClient)
+
+        val mediaSourceFactory = DefaultMediaSourceFactory(appContext)
+            .setDataSourceFactory(okHttpDataSourceFactory)
+
+        return ExoPlayer.Builder(appContext).apply {
+            setTrackSelector(trackSelector)
+            setMediaSourceFactory(mediaSourceFactory)
+        }.build()
+    }
     //region UI STATE
 
     private val _isSkip = MutableLiveData(false)
@@ -155,47 +173,30 @@ class PlayerViewModel
     private var seekBarSyncJob = viewModelScope.launch { }
 
 
-    var movieModel: MoviePlayerModalUi = getSampleVideoModel()
-    fun setMovieData(id: String) {
-        movieModel = repoMovies.getMovieModelPresentation(id)!!
-        exoPlayer.apply {
-            setMediaItem(MediaItem.fromUri(getVideoLink(movieModel.id)))
-//            setMediaItem(MediaItem.fromUri("https://live.devhimu.in/files/aaa.m3u8"))
-            prepare()
-            playWhenReady = true
+    var movieModel: ModelPLayerUI = getSampleVideoModel()
+    fun setMovieData(data: DtoPlayerView) {
+        viewModelScope.launch {
+            movieModel = repoMovies.getMovieModelPresentation(data.id)
+            exoPlayer.apply {
+                if (data.type != PlayingType.LINK)
+                    setMediaItem(MediaItem.fromUri(getVideoLink(movieModel.flickId)))
+                else setMediaItem(MediaItem.fromUri(data.link))
+                prepare()
+                playWhenReady = true
+            }
+            _scaleType.postValue(movieModel.scaleType)
+            currFitType = movieModel.scaleType
+            if (data.type != PlayingType.LINK) {
+                cacheInterceptor.setId(data.id)
+                repoSettings.setCurrentId(data.id)
+            }
+            _seekBarPosition.postValue(movieModel.seekPosition to 0f)
         }
-        _scaleType.postValue(movieModel.scaleType)
-        currFitType = movieModel.scaleType
-        repoSettings.setCurrentId(id)
-        _seekBarPosition.postValue(movieModel.seekPosition to 0f)
     }
 
     init {
 
         //region EXO LIS
-
-        exoPlayer.addAnalyticsListener(object : AnalyticsListener {
-            override fun onLoadCompleted(
-                eventTime: AnalyticsListener.EventTime,
-                loadEventInfo: LoadEventInfo,
-                mediaLoadData: MediaLoadData
-            ) {
-                super.onLoadCompleted(eventTime, loadEventInfo, mediaLoadData)
-                Log.d(
-                    "TAG--",
-                    "${
-                        (loadEventInfo.responseHeaders["Cf-Cache-Status"] ?: "NaN").toString()
-                            .removePrefix("[").removeSuffix("]")
-                    } ${
-                        if (loadEventInfo.uri.toString().contains("himu.in"))
-                            loadEventInfo.uri.toString()
-                                .substring(loadEventInfo.uri.toString().indexOf(".in/") + 4)
-                        else loadEventInfo.uri.toString()
-                            .replace("https://storage.googleapis.com/flick-pub/", "")
-                    }"
-                )
-            }
-        })
 
         exoPlayer.addListener(object : Player.Listener {
             override fun onPlayerError(error: PlaybackException) {
@@ -212,14 +213,18 @@ class PlayerViewModel
                 when (playbackState) {
                     Player.STATE_READY -> {
                         if (_playState.value == PlayingState.INITIAL) {
-                            movieModel.videoTrack?.let {
-                                selectVideoTrack(
-                                    it,
-                                    movieModel.videoTracks
-                                )
+                            viewModelScope.launch {
+                                delay(1000)
+                                movieModel.videoTrack?.let {
+                                    Log.d(
+                                        "TAG--",
+                                        "onPlaybackStateChanged: $it ${movieModel.videoTracks}"
+                                    )
+                                    selectVideoTrack(it, movieModel.videoTracks)
+                                }
+                                movieModel.audioTrack?.let { selectAudioTrack(it) }
+                                movieModel.subtitleTrack?.let { selectSubtitleTrack(it) }
                             }
-                            movieModel.audioTrack?.let { selectAudioTrack(it) }
-                            movieModel.subtitleTrack?.let { selectSubtitleTrack(it) }
                             exoPlayer.seekTo(
                                 movieModel.playedMs
                             )
@@ -355,7 +360,7 @@ class PlayerViewModel
     //region VIDEO TRACKS
 
     fun selectVideoTrack(trackInfo: TrackInfo, size: Int) {
-        Log.d("TAG--", "selectVideoTrack: \n$trackInfo")
+        Log.d("TAG--", "selectVideoTrack: $trackInfo")
         _isSidePanel.postValue(0 to listOf())
         movieModel.videoTrack = trackInfo
         repoSettings.saveTrackInfo(TrackType.VIDEO, trackInfo)
@@ -377,7 +382,7 @@ class PlayerViewModel
         val trackGroup =
             mappedTrackInfo.getTrackGroups(rendererIndex).get(videoTrackInfo.groupIndex)
         val override =
-            TrackSelectionOverride(trackGroup, size - videoTrackInfo.trackIndex)
+            TrackSelectionOverride(trackGroup, (size - 1 - videoTrackInfo.trackIndex))
 
         val parameters = trackSelector.buildUponParameters()
             .clearOverridesOfType(C.TRACK_TYPE_VIDEO)
@@ -397,6 +402,14 @@ class PlayerViewModel
         repoSettings.saveTrackInfo(TrackType.AUDIO, trackInfo)
         val mappedTrackInfo = trackSelector.currentMappedTrackInfo ?: return
         val audioTrackInfo = trackInfo ?: run {
+            trackSelector.setParameters(
+                trackSelector.buildUponParameters().setRendererDisabled(
+                    C.TRACK_TYPE_AUDIO, true
+                )
+            )
+            return
+        }
+        if (audioTrackInfo.trackIndex == -1) {
             trackSelector.setParameters(
                 trackSelector.buildUponParameters().setRendererDisabled(
                     C.TRACK_TYPE_AUDIO, true
@@ -433,6 +446,13 @@ class PlayerViewModel
         repoSettings.saveTrackInfo(TrackType.SUBTITLE, trackInfo)
         val mappedTrackInfo = trackSelector.currentMappedTrackInfo ?: return
         val subTitleTrackInfo = trackInfo ?: run {
+            trackSelector.setParameters(
+                trackSelector.buildUponParameters()
+                    .setRendererDisabled(C.TRACK_TYPE_VIDEO, true)
+            )
+            return
+        }
+        if (subTitleTrackInfo.trackIndex == -1) {
             trackSelector.setParameters(
                 trackSelector.buildUponParameters()
                     .setRendererDisabled(C.TRACK_TYPE_VIDEO, true)

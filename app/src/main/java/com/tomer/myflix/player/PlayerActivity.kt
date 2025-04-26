@@ -25,9 +25,11 @@ import androidx.lifecycle.lifecycleScope
 import androidx.media3.common.util.UnstableApi
 import androidx.media3.ui.AspectRatioFrameLayout
 import com.tomer.myflix.R
+import com.tomer.myflix.common.gson
 import com.tomer.myflix.databinding.ActivityExoPlayerBinding
 import com.tomer.myflix.databinding.PanelSpeedBinding
 import com.tomer.myflix.databinding.RowSidePanelBinding
+import com.tomer.myflix.presentation.ui.models.DtoPlayerView
 import com.tomer.myflix.presentation.ui.models.TrackInfo
 import com.tomer.myflix.presentation.ui.views.GestureView
 import com.tomer.myflix.presentation.ui.views.SeekBar
@@ -57,12 +59,13 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
                 Color.TRANSPARENT
             ) { this.isDarkModeEnabled() })
 
-        val movieId = intent.getStringExtra("id") ?: kotlin.run {
+        val data = try {
+            gson.fromJson(intent.getStringExtra("data"), DtoPlayerView::class.java)
+        } catch (_: Exception) {
             finish()
             return
         }
-
-        vm.setMovieData(movieId)
+        vm.setMovieData(data)
 
         enableEdgeToEdge()
         setContentView(b.root)
@@ -526,7 +529,7 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
         newList.forEach { mod ->
             val row = RowSidePanelBinding.inflate(layoutInflater)
             row.tvQuality.text = mod.language
-            row.root.tag = (list.size - 1) to mod
+            row.root.tag = (list.size) to mod
             row.root.setOnClickListener(qualityClicks)
             if (mod.isSelected) row.indi.setCardBackgroundColor(vm.colAccent)
             b.sidePanel.addView(row.root)
