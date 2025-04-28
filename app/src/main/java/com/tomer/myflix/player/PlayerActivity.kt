@@ -6,6 +6,7 @@ import android.graphics.Color
 import android.media.AudioManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import android.view.HapticFeedbackConstants
 import android.view.View
 import android.view.WindowInsets
@@ -48,6 +49,8 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
 
     private val audioMan by lazy { this.getSystemService(AUDIO_SERVICE) as AudioManager }
 
+    private var isBackPressed = false
+
     //region LIFE CYCLES
 
     @OptIn(UnstableApi::class)
@@ -67,6 +70,7 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
         }
         vm.setMovieData(data)
 
+        Log.d("TAG--", "onCreate: ")
         enableEdgeToEdge()
         setContentView(b.root)
         b.exoPlayer.player = vm.exoPlayer
@@ -80,10 +84,19 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
     override fun onPause() {
         super.onPause()
         vm.savePlayBackState(b.seekBar.progress)
+        Log.d("TAG--", "onPause: ")
+    }
+
+    override fun onDestroy() {
+        super.onDestroy()
+        Log.d("TAG--", "onDestroy: $isBackPressed")
+        if (!isBackPressed)
+            finishAffinity()
     }
 
     override fun onResume() {
         super.onResume()
+        Log.d("TAG--", "onResume: ")
         val vol = getCurrentAndMaxVol()
         b.gestureView.setVolAndBrightNess(
             vol.first, vol.second,
@@ -97,6 +110,7 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
 
     override fun onBackPressed() {
         super.onBackPressed()
+        isBackPressed = true
     }
 
     //endregion LIFE CYCLES
@@ -159,6 +173,12 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
 
     @OptIn(UnstableApi::class)
     private fun setupObservers() {
+        vm.colAccent.observe(this) { colorAccent ->
+            b.seekBar.setAccentColor(colorAccent)
+            b.gestureView.setAccentColor(colorAccent)
+            b.chipSpeed.setAccentColor(colorAccent)
+            b.chipSkip.setAccentColor(colorAccent)
+        }
         vm.isPlaying.observe(this) { isPlay ->
             b.exoPlayer.keepScreenOn = isPlay
             b.btPlay.setImageResource(
@@ -183,15 +203,7 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
                         } catch (_: Exception) {
                             null
                         }
-                        bmp?.let {
-                            b.imgThumb.setImageBitmap(it)
-                            val colorAccent = getVibrantCol(it)
-                            vm.colAccent = colorAccent
-                            b.seekBar.setAccentColor(colorAccent)
-                            b.gestureView.setAccentColor(colorAccent)
-                            b.chipSpeed.setAccentColor(colorAccent)
-                            b.chipSkip.setAccentColor(colorAccent)
-                        }
+                        bmp?.let { b.imgThumb.setImageBitmap(it) }
                     }
                 }
 
@@ -277,24 +289,25 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
         }
 
         vm.scaleType.observe(this) {
-            when (it) {
-                -1 -> b.tvSize.visibility = View.GONE
+            if (!it) {
+                b.tvSize.visibility = View.GONE
+                return@observe
+            }
+            b.tvSize.visibility = View.VISIBLE
+            when (vm.currFitType) {
                 0 -> {
-                    b.tvSize.visibility = View.VISIBLE
                     b.exoPlayer.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FIT
                     if (vm.playerState.value == PlayingState.PLAYING || vm.playerState.value == PlayingState.LOADED)
                         "FIT SCREEN".also { s -> b.tvSize.text = s }
                 }
 
                 1 -> {
-                    b.tvSize.visibility = View.VISIBLE
                     b.exoPlayer.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_FILL
                     if (vm.playerState.value == PlayingState.PLAYING || vm.playerState.value == PlayingState.LOADED)
                         "STRETCH".also { s -> b.tvSize.text = s }
                 }
 
                 2 -> {
-                    b.tvSize.visibility = View.VISIBLE
                     b.exoPlayer.resizeMode = AspectRatioFrameLayout.RESIZE_MODE_ZOOM
                     if (vm.playerState.value == PlayingState.PLAYING || vm.playerState.value == PlayingState.LOADED)
                         "CROP".also { s -> b.tvSize.text = s }
@@ -531,7 +544,7 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
             row.tvQuality.text = mod.language
             row.root.tag = (list.size) to mod
             row.root.setOnClickListener(qualityClicks)
-            if (mod.isSelected) row.indi.setCardBackgroundColor(vm.colAccent)
+            if (mod.isSelected) row.indi.setCardBackgroundColor(vm.colAccent.value!!)
             b.sidePanel.addView(row.root)
         }
     }
@@ -575,7 +588,7 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
             row.tvQuality.text = mod.language
             row.root.tag = mod
             row.root.setOnClickListener(audioClickLis)
-            if (mod.isSelected) row.indi.setCardBackgroundColor(vm.colAccent)
+            if (mod.isSelected) row.indi.setCardBackgroundColor(vm.colAccent.value!!)
             b.sidePanel.addView(row.root)
         }
     }
@@ -593,7 +606,7 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
             row.tvQuality.text = mod.language
             row.root.tag = mod
             row.root.setOnClickListener(subClickLis)
-            if (mod.isSelected) row.indi.setCardBackgroundColor(vm.colAccent)
+            if (mod.isSelected) row.indi.setCardBackgroundColor(vm.colAccent.value!!)
             b.sidePanel.addView(row.root)
         }
     }

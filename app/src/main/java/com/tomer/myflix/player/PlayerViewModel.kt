@@ -1,6 +1,7 @@
 package com.tomer.myflix.player
 
 import android.content.Context
+import android.graphics.Color
 import android.util.Log
 import androidx.annotation.FloatRange
 import androidx.annotation.OptIn
@@ -43,6 +44,7 @@ class PlayerViewModel
     private val repoMovies: RepoMovies,
     private val repoSettings: RepoSettings,
 ) : ViewModel() {
+
     val trackSelector = DefaultTrackSelector(appContext)
         .apply {
             setParameters(
@@ -76,6 +78,9 @@ class PlayerViewModel
 
     private val _isSkip = MutableLiveData(false)
     val isSkip: LiveData<Boolean> = _isSkip
+
+    private val _colAccent = MutableLiveData(Color.RED)
+    val colAccent: LiveData<Int> = _colAccent
 
     private val _isControls = MutableLiveData(true)
     val isControls: LiveData<Boolean> = _isControls
@@ -145,33 +150,31 @@ class PlayerViewModel
     //endregion QUALITY SPEED
 
     //region :: SCALE TYPE
-    private val _scaleType = MutableLiveData(0)
-    val scaleType: LiveData<Int> = _scaleType
+    private val _scaleType = MutableLiveData(false)
+    val scaleType: LiveData<Boolean> = _scaleType
 
     private var scaleHideJob = viewModelScope.launch { }
-    private var currFitType = 0
+    var currFitType = 0
     fun setNextScaleType() {
         val nextScale = currFitType.plus(1).rem(3)
-        _scaleType.postValue(nextScale)
-        repoSettings.saveScaleType(nextScale)
         currFitType = nextScale
+        _scaleType.postValue(true)
+        repoSettings.saveScaleType(nextScale)
         scaleHideJob.cancel()
         scaleHideJob = viewModelScope.launch {
             delay(1000)
-            _scaleType.postValue(-1)
+            _scaleType.postValue(false)
         }
     }
 
     //endregion :: SCALE TYPE
 
     var playSpeed = 1f
-    var colAccent = 0
     private var retries = 0
 
     //endregion UI STATE
 
     private var seekBarSyncJob = viewModelScope.launch { }
-
 
     var movieModel: ModelPLayerUI = getSampleVideoModel()
     fun setMovieData(data: DtoPlayerView) {
@@ -184,7 +187,9 @@ class PlayerViewModel
                 prepare()
                 playWhenReady = true
             }
-            _scaleType.postValue(movieModel.scaleType)
+            _colAccent.postValue(movieModel.accentCol)
+            currFitType = movieModel.scaleType
+            _scaleType.postValue(true)
             currFitType = movieModel.scaleType
             if (data.type != PlayingType.LINK) {
                 cacheInterceptor.setId(data.id)
@@ -214,14 +219,7 @@ class PlayerViewModel
                     Player.STATE_READY -> {
                         if (_playState.value == PlayingState.INITIAL) {
                             viewModelScope.launch {
-                                delay(1000)
-                                movieModel.videoTrack?.let {
-                                    Log.d(
-                                        "TAG--",
-                                        "onPlaybackStateChanged: $it ${movieModel.videoTracks}"
-                                    )
-                                    selectVideoTrack(it, movieModel.videoTracks)
-                                }
+                                movieModel.videoTrack?.let { selectVideoTrack(it, movieModel.videoTracks) }
                                 movieModel.audioTrack?.let { selectAudioTrack(it) }
                                 movieModel.subtitleTrack?.let { selectSubtitleTrack(it) }
                             }
@@ -280,6 +278,7 @@ class PlayerViewModel
     override fun onCleared() {
         super.onCleared()
         exoPlayer.release()
+        Log.d("TAG--", "onCleared: VM PLAYER ")
     }
 
     private var hidingJob = viewModelScope.launch { delay(100) }
@@ -342,7 +341,7 @@ class PlayerViewModel
             while (isActive) {
                 _seekBarPosition.postValue(
                     exoPlayer.currentPosition.div(exoPlayer.duration.toFloat())
-                            to
+                                to
                             exoPlayer.bufferedPosition.div(exoPlayer.duration.toFloat())
                 )
                 _timeText.postValue(

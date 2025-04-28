@@ -1,6 +1,8 @@
 package com.tomer.myflix.player
 
+import android.app.Activity
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
@@ -11,15 +13,21 @@ import androidx.palette.graphics.Palette
 import coil.ImageLoader
 import coil.request.ImageRequest
 import coil.request.SuccessResult
-import com.tomer.myflix.data.models.LinkPair
-import kotlinx.coroutines.CoroutineScope
+import com.tomer.myflix.data.models.TimePair
+import com.tomer.myflix.presentation.ui.models.ModelPLayerUI
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.util.Locale
 import java.util.concurrent.TimeUnit
-import kotlin.coroutines.suspendCoroutine
 
+
+fun Activity.isDarkModeEnabled(): Boolean {
+    val currentNightMode = resources.configuration.uiMode.and(Configuration.UI_MODE_NIGHT_MASK)
+    return currentNightMode == Configuration.UI_MODE_NIGHT_YES
+}
+
+fun getVideoLink(id: String) =
+    "https://flick.devhimu.in/files/$id/master.m3u8"
 
 fun Long.timeTextFromMs(): String {
     val hours = TimeUnit.MILLISECONDS.toHours(this)
@@ -43,33 +51,6 @@ enum class PlayingState {
     INITIAL, LOADED, ERROR, PLAYING, ENDED
 }
 
-fun getUrlFromQuality(quality: Int, list: List<LinkPair>): String {
-    fun getMinFromList(): Int {
-        return list.stream().mapToInt { it.disName.removeSuffix(" P").toInt() }.min().orElse(480)
-    }
-    return when (quality) {
-        240 -> list.find { it.disName.contains("240") }?.url
-            ?: getUrlFromQuality(120, list)
-
-        360 -> list.find { it.disName.contains("360") }?.url
-            ?: getUrlFromQuality(240, list)
-
-        480 -> list.find { it.disName.contains("480") }?.url
-            ?: getUrlFromQuality(360, list)
-
-        720 -> list.find { it.disName.contains("720") }?.url
-            ?: getUrlFromQuality(480, list)
-
-        1080 -> list.find { it.disName.contains("1080") }?.url
-            ?: getUrlFromQuality(720, list)
-
-        2160 -> list.find { it.disName.contains("2160") }?.url
-            ?: getUrlFromQuality(1080, list)
-
-        else -> getUrlFromQuality(getMinFromList(), list)
-    }
-}
-
 fun getLanguageName(langCode: String?): String {
     return if (langCode == null) "Unknown"
     else Locale(langCode).displayLanguage
@@ -82,19 +63,26 @@ suspend fun getVibrantCol(bmp: Bitmap): Int {
     }
 }
 
-suspend fun String.urlToBitmap(con: Context, scope: CoroutineScope): Bitmap {
-    return suspendCoroutine { continuation ->
-        scope.launch(Dispatchers.IO) {
-            val loader = ImageLoader(con)
-            val req = ImageRequest.Builder(con)
-                .data(this@urlToBitmap)
-                .allowHardware(false)
-                .allowConversionToBitmap(true)
-                .build()
-            val result = loader.execute(req)
-            if (result is SuccessResult)
-                continuation.resumeWith(Result.success((result.drawable as BitmapDrawable).bitmap))
-            else continuation.resumeWith(Result.failure(Exception("Error Occurred")))
-        }
+suspend fun String.urlToBitmap(con: Context): Bitmap {
+    return withContext(Dispatchers.IO) {
+        val loader = ImageLoader(con)
+        val req = ImageRequest.Builder(con)
+            .data(this@urlToBitmap)
+            .allowHardware(false)
+            .allowConversionToBitmap(true)
+            .build()
+        val result = loader.execute(req)
+        return@withContext if (result is SuccessResult)
+            (result.drawable as BitmapDrawable).bitmap
+        else throw Exception("")
     }
 }
+
+fun getSampleVideoModel() = ModelPLayerUI(
+    "ivqtjv",
+    "Kuch Bhi Name",
+    TimePair(1000, 10000),
+    "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ3mNRv_ktQx8yYdbTQzz7KN2EydERqgwMkx0KWXs2-X__DUaglPAYOvodR&s=10",
+    Color.RED,0L, 0, 3,null, null, null, 1f, .3f
+
+)
