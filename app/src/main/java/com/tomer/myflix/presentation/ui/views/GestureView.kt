@@ -1,9 +1,10 @@
-package com.tomer.myflix.ui.views
+package com.tomer.myflix.presentation.ui.views
 
 import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
 import android.content.res.Resources
+import android.graphics.BlurMaskFilter
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
@@ -17,18 +18,20 @@ import android.view.GestureDetector
 import android.view.HapticFeedbackConstants
 import android.view.MotionEvent
 import android.view.View
+import android.view.animation.AccelerateInterpolator
+import android.view.animation.LinearInterpolator
 import androidx.annotation.ColorInt
 import androidx.core.animation.doOnEnd
-import androidx.core.animation.doOnStart
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.withClip
 import androidx.core.graphics.withRotation
 import com.tomer.myflix.R
-import com.tomer.myflix.player.performHaptic
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import java.util.LinkedList
+import java.util.Queue
 import kotlin.math.absoluteValue
 import kotlin.math.roundToInt
 
@@ -38,26 +41,77 @@ class GestureView : View {
 
     //region :: INIT-->>>
     constructor(context: Context) : super(context)
-    constructor(context: Context, attr: AttributeSet, defStyle: Int) : super(
-        context,
-        attr,
-        defStyle
-    )
+    constructor(context: Context, attr: AttributeSet, defStyle: Int) :
+            super(context, attr, defStyle)
 
     constructor(context: Context, attr: AttributeSet) : super(context, attr)
     //endregion :: INIT-->>>
 
+    init {
+        setLayerType(LAYER_TYPE_SOFTWARE, null)
+    }
+
     //region :: GLOBALS
 
     private var gestureLis: VideoGestureListener? = null
-    private var tintCol = Color.argb(.4f, 0f, 0f, 0f)
+    private var tintCol = Color.argb(.32f, 0f, 0f, 0f)
 
     private var colAnim = ValueAnimator.ofArgb(tintCol, tintCol)
     private var canScrollUp = true
     private var canScrollUpONCE = true
 
     private var doubleTapped = false
-    private var animCancelled = false
+
+    private var vol = 10
+    private var maxVol = 15
+    private var bright = 1f
+
+    private var posBright = 0f
+    private var posVol = 0f
+
+    private val dp8 = 8.px().roundToInt()
+    private val dp12 = 12.px()
+
+    private val drFull by lazy { ContextCompat.getDrawable(context, R.drawable.ic_bright_full) }
+    private val drLow by lazy { ContextCompat.getDrawable(context, R.drawable.ic_bright_low) }
+
+    private val drVolLow by lazy { ContextCompat.getDrawable(context, R.drawable.volume_down) }
+    private val drVolOff by lazy { ContextCompat.getDrawable(context, R.drawable.volume_off) }
+    private val drVolHigh by lazy { ContextCompat.getDrawable(context, R.drawable.volume_up) }
+
+    private var isSkipping: Boolean? = null
+    private var maxRadius = 0f
+
+    private val pathForward = Path()
+    private val pathBackward = Path()
+
+    private val colWhiteZeroAlpha = Color.argb(0f, 1f, 1f, 1f)
+    private var colPCircle = Color.argb(.2f, 1f, 1f, 1f)
+    private var rippleColAnim = ValueAnimator.ofFloat(0f, 0f)
+    private val queueRipple: Queue<RippleAnimator> = LinkedList()
+    private fun onEndRipple(isLast: Boolean) {
+        if (isLast) {
+            rippleColAnim = ValueAnimator.ofArgb(colPCircle, colWhiteZeroAlpha).apply {
+                doOnEnd {
+                    isSkipping = null
+                }
+                addUpdateListener {
+                    colPCircle = it.animatedValue as Int
+                    postInvalidate()
+                }
+                interpolator = LinearInterpolator()
+                startDelay = 60
+                duration = 160
+                start()
+            }
+        }
+        queueRipple.remove()
+    }
+
+    private fun onUpdateRipple() {
+        postInvalidate()
+    }
+
     private val gestureDetector =
         GestureDetector(context, object : GestureDetector.SimpleOnGestureListener() {
             override fun onScroll(
@@ -82,9 +136,10 @@ class GestureView : View {
                     showVol = true
 
                     val intVolNew = posVol.div(height).times(maxVol).roundToInt()
-                    if (intVolNew < vol)
-                        gestureLis?.onVolume(false).also { vol = intVolNew }
-                    else if (intVolNew > vol)
+                    if (intVolNew < vol) {
+                        gestureLis?.onVolume(false)
+                        vol = intVolNew
+                    } else if (intVolNew > vol)
                         gestureLis?.onVolume(true).also { vol = intVolNew }
 
                     postInvalidate()
@@ -123,60 +178,31 @@ class GestureView : View {
                 doubleTapped = true
                 val isForward = e.x > width.div(2)
                 gestureLis?.onDoubleTap(isForward)
-                rippleCenter.set(e.x, e.y)
-                if (rippleAnim.isRunning) {
-                    rippleAnim.cancel()
-                    animCancelled = true
-                }
 
-                if (isSkipping != null)
-                    rippleAnim = ValueAnimator.ofFloat(0f, 1f).apply {
+                rippleColAnim.cancel()
+                rippleColAnim =
+                    ValueAnimator.ofArgb(colPCircle, Color.argb(.2f, 1f, 1f, 1f)).apply {
                         addUpdateListener {
-                            val aniVal = it.animatedValue as Float
-                            rippleRadius = aniVal.times(pRadius)
+                            colPCircle = it.animatedValue as Int
                             postInvalidate()
                         }
-                        doOnEnd {
-                            if (animCancelled) {
-                                animCancelled = false
-                                return@doOnEnd
-                            }
-                            startEndAnim()
-                        }
-                        this.duration = 500
+                        interpolator = LinearInterpolator()
+                        duration = 120
                         start()
                     }
-                else
-                    rippleAnim = ValueAnimator.ofFloat(0f, 1f).apply {
-                        doOnStart {
-                            ValueAnimator.ofArgb(
-                                Color.argb(0f, 0f, 0f, 0f),
-                                Color.argb(0.32f, 0f, 0f, 0f)
-                            ).apply {
-                                addUpdateListener {
-                                    colPCircle = it.animatedValue as Int
-                                    postInvalidate()
-                                }
-                                duration = 200
-                                start()
-                            }
-                        }
-                        addUpdateListener {
-                            val aniVal = it.animatedValue as Float
-                            rippleRadius = aniVal.times(pRadius)
-                            postInvalidate()
-                        }
-                        doOnEnd {
-                            if (animCancelled) {
-                                animCancelled = false
-                                return@doOnEnd
-                            }
-                            startEndAnim()
-                        }
-                        startDelay = 100
-                        this.duration = 500
-                        start()
-                    }
+
+                if (queueRipple.isNotEmpty())
+                    queueRipple.last().isLast = false
+
+                queueRipple.offer(
+                    RippleAnimator(
+                        maxRadius,
+                        PointF(e.x, e.y),
+                        if (isForward) pathForward else pathBackward,
+                        { onUpdateRipple() },
+                        { onEndRipple(it) }
+                    )
+                )
 
                 isSkipping = isForward
                 postInvalidate()
@@ -191,56 +217,6 @@ class GestureView : View {
             }
 
         })
-
-    private fun startEndAnim() {
-        rippleRadius = 0f
-        ValueAnimator.ofArgb(
-            Color.argb(.32f, 0f, 0f, 0f),
-            Color.argb(0f, 0f, 0f, 0f)
-        ).apply {
-            doOnEnd {
-                isSkipping = null
-            }
-            addUpdateListener {
-                colPCircle = it.animatedValue as Int
-                postInvalidate()
-            }
-            duration = 200
-            start()
-        }
-    }
-
-    private var vol = 10
-    private var maxVol = 15
-    private var bright = 1f
-
-    private var posBright = 0f
-    private var posVol = 0f
-
-    private val dp8 = 8.px().roundToInt()
-    private val dp12 = 12.px()
-
-    private val drFull by lazy { ContextCompat.getDrawable(context, R.drawable.ic_bright_full) }
-    private val drLow by lazy { ContextCompat.getDrawable(context, R.drawable.ic_bright_low) }
-
-    private val drVolLow by lazy { ContextCompat.getDrawable(context, R.drawable.volume_down) }
-    private val drVolOff by lazy { ContextCompat.getDrawable(context, R.drawable.volume_off) }
-    private val drVolHigh by lazy { ContextCompat.getDrawable(context, R.drawable.volume_up) }
-
-    private var isSkipping: Boolean? = null
-    private var rippleRadius = 1f
-    private var rippleCenter = PointF(0f, 0f)
-    private var pRadius = 0f
-
-    private val pathForward = Path()
-    private val pathBackward = Path()
-
-    private var colPCircle = Color.argb(.4f, 0f, 0f, 0f)
-    private val paintRipple = Paint().apply {
-        isAntiAlias = true
-        color = Color.argb(.4f, 0f, 0f, 0f)
-    }
-    private var rippleAnim = ValueAnimator.ofFloat(0f, 0f)
 
     //endregion :: GLOBALS
 
@@ -265,14 +241,14 @@ class GestureView : View {
         xBright = w.times(.2f)
         y = height.minus(progHeight).div(2f) + (dp8 shl 1)
 
-        pRadius = h.toFloat()
+        maxRadius = h.toFloat()
         val halfH = h.times(.5f)
 
         pathForward.reset()
         pathForward.addCircle(
             w.toFloat(),
             halfH,
-            pRadius,
+            maxRadius,
             Path.Direction.CW
         )
 
@@ -280,7 +256,7 @@ class GestureView : View {
         pathBackward.addCircle(
             0f,
             halfH,
-            pRadius,
+            maxRadius,
             Path.Direction.CW
         )
 
@@ -339,7 +315,9 @@ class GestureView : View {
         isSkipping?.let { isForward ->
             canvas.withClip(if (isForward) pathForward else pathBackward) {
                 drawColor(colPCircle)
-                canvas.drawCircle(rippleCenter.x, rippleCenter.y, rippleRadius, paintRipple)
+            }
+            queueRipple.forEach { rippleAnimator ->
+                rippleAnimator.draw(canvas)
             }
         }
 
@@ -419,7 +397,7 @@ class GestureView : View {
         if (event.action == MotionEvent.ACTION_UP) {
             if (isLongClicked) {
                 isLongClicked = false
-                performHaptic(HapticFeedbackConstants.VIRTUAL_KEY_RELEASE)
+                performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY_RELEASE)
                 gestureLis?.onLongPress(false)
             }
             if (showVol) {
@@ -476,11 +454,11 @@ class GestureView : View {
 
     //region COMMUNICATION
 
-    fun setVideoGestureLis(lis: VideoGestureListener) = kotlin.run { this.gestureLis = lis }
+    fun setVideoGestureLis(lis: VideoGestureListener) = run { this.gestureLis = lis }
     fun setVisi(isVisible: Boolean) {
         if (isVisible) {
             if (colAnim.isRunning) colAnim.cancel()
-            colAnim = ValueAnimator.ofArgb(tintCol, Color.argb(.4f, 0f, 0f, 0f)).apply {
+            colAnim = ValueAnimator.ofArgb(tintCol, Color.argb(.32f, 0f, 0f, 0f)).apply {
                 addUpdateListener {
                     tintCol = it.animatedValue as Int
                     invalidate()
@@ -509,7 +487,7 @@ class GestureView : View {
         this.posBright = height.times(bright)
     }
 
-    fun setAccentColor(@ColorInt color: Int){
+    fun setAccentColor(@ColorInt color: Int) {
         paintProg.color = color
         postInvalidate()
     }
@@ -529,5 +507,61 @@ class GestureView : View {
 
         fun requestVolSync()
     }
+
+    private class RippleAnimator(
+        private val maxRadius: Float,
+        private val center: PointF,
+        private val path: Path,
+        onUpdate: () -> Unit,
+        onEnd: (Boolean) -> Unit
+    ) {
+        var isLast = true
+        private var radius = 0f
+        private val paintRippleBlur = Paint().apply {
+            color = Color.argb(.2f, 1f, 1f, 1f)
+            maskFilter = BlurMaskFilter(40.px(), BlurMaskFilter.Blur.NORMAL)
+            isAntiAlias = true
+            style = Paint.Style.FILL_AND_STROKE
+        }
+
+        init {
+            ValueAnimator.ofFloat(0f, maxRadius.times(1.2f)).apply {
+                addUpdateListener {
+                    radius = it.animatedValue as Float
+                    onUpdate()
+                }
+                doOnEnd {
+                    if (isLast) {
+                        onEnd(true)
+                        return@doOnEnd
+                    }
+                    ValueAnimator.ofArgb(paintRippleBlur.color, Color.argb(0f, 1f, 1f, 1f)).apply {
+                        doOnEnd { onEnd(false) }
+                        addUpdateListener {
+                            paintRippleBlur.color = it.animatedValue as Int
+                            onUpdate()
+                        }
+                        interpolator = LinearInterpolator()
+                        duration = 180
+                        start()
+                    }
+                }
+                interpolator = AccelerateInterpolator()
+                this.duration = 460
+                start()
+            }
+        }
+
+        fun draw(canvas: Canvas) {
+            canvas.withClip(path) {
+                canvas.drawCircle(center.x, center.y, radius, paintRippleBlur)
+            }
+        }
+
+        private fun Number.px() = TypedValue.applyDimension(
+            TypedValue.COMPLEX_UNIT_DIP, this.toFloat(), Resources.getSystem().displayMetrics
+        )
+    }
+
 
 }

@@ -1,4 +1,4 @@
-package com.tomer.myflix.ui.views
+package com.tomer.myflix.presentation.ui.views
 
 import android.animation.ValueAnimator
 import android.annotation.SuppressLint
