@@ -3,7 +3,7 @@ package com.tomer.myflix.presentation.ui.models
 import android.graphics.Color
 import com.tomer.myflix.data.models.TimePair
 
-data class BuilderMoviePresentation(
+data class BuilderPlayablePresentation(
     private var id: String? = null,
     private var name: String? = null,
     private var introTime: TimePair = TimePair(0L, 0L),
