@@ -29,7 +29,10 @@ import com.tomer.myflix.presentation.ui.models.PlayingType
 import com.tomer.myflix.presentation.ui.models.TrackInfo
 import dagger.hilt.android.lifecycle.HiltViewModel
 import dagger.hilt.android.qualifiers.ApplicationContext
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -40,10 +43,12 @@ import javax.inject.Inject
 @HiltViewModel
 class PlayerViewModel
 @Inject constructor(
-    @ApplicationContext val appContext: Context,
+    @param:ApplicationContext val appContext: Context,
     private val repoMovies: RepoMovies,
     private val repoSettings: RepoSettings,
 ) : ViewModel() {
+
+    val skipTimerScope = CoroutineScope(Dispatchers.Default)
 
     val trackSelector = DefaultTrackSelector(appContext)
         .apply {
@@ -170,6 +175,7 @@ class PlayerViewModel
     //endregion :: SCALE TYPE
 
     var playSpeed = 1f
+    var isVMActive = false
     private var retries = 0
 
     //endregion UI STATE
@@ -178,6 +184,7 @@ class PlayerViewModel
 
     var movieModel: ModelPLayerUI = getSampleVideoModel()
     fun setMovieData(data: DtoPlayerView) {
+        isVMActive = true
         viewModelScope.launch {
             movieModel = repoMovies.getMovieModelPresentation(data.id)
             exoPlayer.apply {
@@ -188,8 +195,6 @@ class PlayerViewModel
                 playWhenReady = true
             }
             _colAccent.postValue(movieModel.accentCol)
-            currFitType = movieModel.scaleType
-            _scaleType.postValue(true)
             currFitType = movieModel.scaleType
             if (data.type != PlayingType.LINK) {
                 cacheInterceptor.setId(data.id)
@@ -219,13 +224,15 @@ class PlayerViewModel
                     Player.STATE_READY -> {
                         if (_playState.value == PlayingState.INITIAL) {
                             viewModelScope.launch {
-                                movieModel.videoTrack?.let { selectVideoTrack(it, movieModel.videoTracks) }
+                                movieModel.videoTrack?.let {
+                                    selectVideoTrack(it)
+                                }
                                 movieModel.audioTrack?.let { selectAudioTrack(it) }
                                 movieModel.subtitleTrack?.let { selectSubtitleTrack(it) }
                             }
-                            exoPlayer.seekTo(
-                                movieModel.playedMs
-                            )
+                            val seekPosPrev5Sec = (movieModel.playedMs - 5000).coerceAtLeast(0L)
+                            if (seekPosPrev5Sec > 2000)
+                                exoPlayer.seekTo(seekPosPrev5Sec)
                             _playState.postValue(PlayingState.LOADED)
                                 .also {
                                     if (_isControls.value == false)
@@ -254,16 +261,18 @@ class PlayerViewModel
                 if (_playState.value != PlayingState.PLAYING) {
                     _playState.postValue(PlayingState.PLAYING)
                     if (exoPlayer.currentPosition >= movieModel.introTime.endTime) return
-                    if (exoPlayer.currentPosition < movieModel.introTime.startTime)
-                        viewModelScope.launch {
-                            delay(movieModel.introTime.startTime)
+                    if (movieModel.introTime.endTime == 0L) return
+                    skipTimerScope.cancel()
+                    if (exoPlayer.currentPosition <= movieModel.introTime.startTime)
+                        skipTimerScope.launch {
+                            delay(movieModel.introTime.startTime - exoPlayer.currentPosition)
                             _isSkip.postValue(true)
                             delay(movieModel.introTime.endTime - movieModel.introTime.startTime)
                             _isSkip.postValue(false)
                         }
-                    else if (exoPlayer.currentPosition >= movieModel.introTime.startTime) {
+                    else {
                         _isSkip.postValue(true)
-                        viewModelScope.launch {
+                        skipTimerScope.launch {
                             delay(movieModel.introTime.endTime - exoPlayer.currentPosition)
                             _isSkip.postValue(false)
                         }
@@ -277,8 +286,10 @@ class PlayerViewModel
 
     override fun onCleared() {
         super.onCleared()
+        skipTimerScope.cancel()
         exoPlayer.release()
         Log.d("TAG--", "onCleared: VM PLAYER ")
+        isVMActive = false
     }
 
     private var hidingJob = viewModelScope.launch { delay(100) }
@@ -296,9 +307,9 @@ class PlayerViewModel
     }
 
 
-    fun skipIntro() {
+    fun skipIntro(skip: Boolean) {
         _isSkip.postValue(false)
-        exoPlayer.seekTo(movieModel.introTime.endTime)
+        if (skip) exoPlayer.seekTo(movieModel.introTime.endTime)
     }
 
     fun skipForward(millis: Long) {
@@ -329,10 +340,10 @@ class PlayerViewModel
     }
 
     @OptIn(UnstableApi::class)
-    fun savePlayBackState(seekPos: Float) {
+    fun onActivityPause() {
+        exoPlayer.pause()
         repoSettings.savePlayedMsAndSeekPos(
-            exoPlayer.currentPosition,
-            seekPos
+            exoPlayer.currentPosition, _seekBarPosition.value!!.first
         )
     }
 
@@ -341,7 +352,7 @@ class PlayerViewModel
             while (isActive) {
                 _seekBarPosition.postValue(
                     exoPlayer.currentPosition.div(exoPlayer.duration.toFloat())
-                                to
+                            to
                             exoPlayer.bufferedPosition.div(exoPlayer.duration.toFloat())
                 )
                 _timeText.postValue(
@@ -358,8 +369,7 @@ class PlayerViewModel
 
     //region VIDEO TRACKS
 
-    fun selectVideoTrack(trackInfo: TrackInfo, size: Int) {
-        Log.d("TAG--", "selectVideoTrack: $trackInfo")
+    fun selectVideoTrack(trackInfo: TrackInfo) {
         _isSidePanel.postValue(0 to listOf())
         movieModel.videoTrack = trackInfo
         repoSettings.saveTrackInfo(TrackType.VIDEO, trackInfo)
@@ -381,7 +391,7 @@ class PlayerViewModel
         val trackGroup =
             mappedTrackInfo.getTrackGroups(rendererIndex).get(videoTrackInfo.groupIndex)
         val override =
-            TrackSelectionOverride(trackGroup, (size - 1 - videoTrackInfo.trackIndex))
+            TrackSelectionOverride(trackGroup, videoTrackInfo.trackIndex)
 
         val parameters = trackSelector.buildUponParameters()
             .clearOverridesOfType(C.TRACK_TYPE_VIDEO)

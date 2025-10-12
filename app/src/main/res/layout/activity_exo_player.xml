@@ -42,8 +42,8 @@
             android:id="@+id/btBack"
             android:layout_width="42dp"
             android:layout_height="42dp"
-            android:layout_marginStart="12dp"
-            android:layout_marginTop="12dp"
+            android:layout_marginStart="20dp"
+            android:layout_marginTop="20dp"
             android:background="@drawable/ripple_round_bg"
             android:contentDescription="@string/app_name"
             android:padding="12dp"
@@ -59,7 +59,7 @@
             android:textSize="22sp" />
 
         <Space
-            android:layout_width="42dp"
+            android:layout_width="46dp"
             android:layout_height="56dp"
             android:layout_marginEnd="12dp" />
     </LinearLayout>
@@ -272,11 +272,10 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
 
-    <LinearLayout
+    <RelativeLayout
         android:id="@+id/ll2xHelper"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:background="@drawable/chip_bg"
         android:padding="8dp"
         android:visibility="invisible"
         app:layout_constraintBottom_toBottomOf="parent"
@@ -285,22 +284,35 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_bias="0.08">
 
-        <ImageView
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:contentDescription="@string/app_name"
-            android:src="@drawable/ic_x2" />
 
-        <Space
-            android:layout_width="10dp"
-            android:layout_height="10dp" />
+        <com.tomer.myflix.presentation.ui.views.ChipBgView
+            android:id="@+id/chip2x"
+            android:layout_width="80dp"
+            android:layout_height="34dp" />
 
-        <ImageView
-            android:layout_width="24dp"
-            android:layout_height="24dp"
-            android:contentDescription="@string/app_name"
-            android:src="@drawable/ic_fast_forward" />
-    </LinearLayout>
+        <LinearLayout
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_centerInParent="true">
+
+            <ImageView
+                android:layout_width="22dp"
+                android:layout_height="22dp"
+                android:contentDescription="@string/app_name"
+                android:src="@drawable/ic_x2" />
+
+            <Space
+                android:layout_width="10dp"
+                android:layout_height="10dp" />
+
+            <ImageView
+                android:layout_width="24dp"
+                android:layout_height="24dp"
+                android:contentDescription="@string/app_name"
+                android:src="@drawable/ic_fast_forward" />
+        </LinearLayout>
+    </RelativeLayout>
+
 
     <LinearLayout
         android:id="@+id/sidePanel"
@@ -311,7 +323,6 @@
         android:background="@drawable/chip_bg"
         android:elevation="8dp"
         android:orientation="vertical"
-        android:paddingVertical="12dp"
         android:translationX="260dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
@@ -326,7 +337,7 @@
         android:background="@drawable/chip_bg"
         android:elevation="8dp"
         android:orientation="vertical"
-        android:translationX="240dp"
+        android:translationX="260dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent" />
 
@@ -345,19 +356,41 @@
             android:layout_width="80dp"
             android:layout_height="36dp" />
 
-        <LinearLayout
+        <TextView
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_centerInParent="true">
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:fontFamily="@font/quantico_bold_italic"
-                android:text="Skip"
-                android:textColor="@color/white"
-                android:textSize="18sp" />
-        </LinearLayout>
+            android:layout_centerInParent="true"
+            android:fontFamily="@font/quantico_bold_italic"
+            android:text="Skip"
+            android:textColor="@color/white"
+            android:textSize="18sp" />
     </RelativeLayout>
+
+
+    <RelativeLayout
+        android:id="@+id/btSkipClose"
+        android:layout_width="30dp"
+        android:layout_height="30dp"
+        android:layout_marginEnd="16dp"
+        android:translationX="320dp"
+        app:layout_constraintBottom_toBottomOf="@+id/btSkip"
+        app:layout_constraintEnd_toStartOf="@+id/btSkip"
+        app:layout_constraintTop_toTopOf="@+id/btSkip">
+
+        <com.tomer.myflix.presentation.ui.views.ChipBgView
+            android:id="@+id/chipSkipClose"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent" />
+
+        <ImageView
+            android:id="@+id/btImgCloseSkip"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/trans"
+            android:contentDescription="Close"
+            android:onClick="onClick"
+            android:src="@drawable/ic_close" />
+    </RelativeLayout>
+
 
 </androidx.constraintlayout.widget.ConstraintLayout>

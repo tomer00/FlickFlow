@@ -10,6 +10,8 @@ import android.util.Log
 import android.view.HapticFeedbackConstants
 import android.view.View
 import android.view.WindowInsets
+import android.view.animation.AccelerateInterpolator
+import android.view.animation.DecelerateInterpolator
 import android.view.animation.OvershootInterpolator
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -19,7 +21,6 @@ import androidx.activity.viewModels
 import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.AppCompatSeekBar
-import androidx.compose.ui.unit.dp
 import androidx.core.view.children
 import androidx.core.view.isEmpty
 import androidx.lifecycle.lifecycleScope
@@ -50,6 +51,7 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
     private val audioMan by lazy { this.getSystemService(AUDIO_SERVICE) as AudioManager }
 
     private var isBackPressed = false
+    private var progressTracking = false
 
     //region LIFE CYCLES
 
@@ -68,9 +70,13 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
             finish()
             return
         }
-        vm.setMovieData(data)
+        if (!vm.isVMActive)
+            vm.setMovieData(data)
+        else {
+//            b.tvSize.visibility=View.GONE
+        }
 
-        Log.d("TAG--", "onCreate: ")
+        Log.d("TAG--", "onCreate: ${intent.getStringExtra("data")}")
         enableEdgeToEdge()
         setContentView(b.root)
         b.exoPlayer.player = vm.exoPlayer
@@ -83,24 +89,31 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
     @OptIn(UnstableApi::class)
     override fun onPause() {
         super.onPause()
-        vm.savePlayBackState(b.seekBar.progress)
+        vm.onActivityPause()
         Log.d("TAG--", "onPause: ")
     }
 
     override fun onDestroy() {
         super.onDestroy()
         Log.d("TAG--", "onDestroy: $isBackPressed")
-        if (!isBackPressed)
-            finishAffinity()
+//        if (!isBackPressed)
+//            finishAffinity()
     }
 
+    @OptIn(UnstableApi::class)
     override fun onResume() {
         super.onResume()
         Log.d("TAG--", "onResume: ")
+        vm.isControls.value?.let { if (!it) hideUI() }
         val vol = getCurrentAndMaxVol()
         b.gestureView.setVolAndBrightNess(
             vol.first, vol.second,
             window.attributes.screenBrightness.takeIf { it >= 0f } ?: 0.5f)
+        b.exoPlayer.resizeMode = when (vm.currFitType) {
+            1 -> AspectRatioFrameLayout.RESIZE_MODE_FILL
+            2 -> AspectRatioFrameLayout.RESIZE_MODE_ZOOM
+            else -> AspectRatioFrameLayout.RESIZE_MODE_FIT
+        }
     }
 
     override fun onStop() {
@@ -161,7 +174,8 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
 
             }
 
-            b.btSkip.id -> vm.skipIntro()
+            b.btSkip.id -> vm.skipIntro(true)
+            b.btImgCloseSkip.id -> vm.skipIntro(false)
 
             else -> {}
         }
@@ -178,6 +192,8 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
             b.gestureView.setAccentColor(colorAccent)
             b.chipSpeed.setAccentColor(colorAccent)
             b.chipSkip.setAccentColor(colorAccent)
+            b.chip2x.setAccentColor(colorAccent)
+            b.chipSkipClose.setAccentColor(colorAccent)
         }
         vm.isPlaying.observe(this) { isPlay ->
             b.exoPlayer.keepScreenOn = isPlay
@@ -217,7 +233,7 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
 
                 PlayingState.PLAYING -> {
                     b.imgThumb.visibility = View.GONE
-                    hideUI()
+                    vm.hideControls(0)
                 }
 
                 PlayingState.ENDED -> {
@@ -230,6 +246,7 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
             b.seekBar.secondaryProgress = durations.second.takeIf { it.isFinite() } ?: 0f
         }
         vm.timeText.observe(this) { timePair ->
+            if (progressTracking) return@observe
             b.tvTimerCurrent.text = timePair.first
             b.tvTimerTotal.text = timePair.second
         }
@@ -274,17 +291,30 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
         setSpeedUi()
 
         vm.isSkip.observe(this) {
-//            b.btSkip.visibility = if (it) View.VISIBLE  else View.GONE
-            if (it) b.btSkip.animate().apply {
-                translationX(0f)
-                interpolator = OvershootInterpolator(1.4f)
-                start()
-            } else {
+            if (it) {
                 b.btSkip.animate().apply {
-                    translationX(280.dp.value)
+                    translationX(0f)
+                    interpolator = OvershootInterpolator(1.4f)
                     start()
                 }
-                setSpeedUi()
+                b.btSkipClose.animate().apply {
+                    translationX(0f)
+                    interpolator = OvershootInterpolator(2f)
+                    startDelay = 100
+                    start()
+                }
+            } else {
+                b.btSkip.animate().apply {
+                    translationX(280.toPX())
+                    interpolator = AccelerateInterpolator()
+                    startDelay = 100
+                    start()
+                }
+                b.btSkipClose.animate().apply {
+                    translationX(320.toPX())
+                    interpolator = DecelerateInterpolator()
+                    start()
+                }
             }
         }
 
@@ -335,6 +365,7 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
         b.seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekChanged {
             override fun onStartTrackingTouch() {
                 vm.showControls()
+                progressTracking = true
             }
 
             override fun onProgressChanged(prog: Float) {
@@ -344,6 +375,7 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
             }
 
             override fun onStopTrackingTouch(finalProg: Float) {
+                progressTracking = false
                 if (vm.exoPlayer.duration <= 0f) return
                 vm.exoPlayer.seekTo(finalProg.times(vm.exoPlayer.duration).toLong())
                 vm.hideControls(1000)
@@ -506,7 +538,6 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
             override fun onStopTrackingTouch(p0: android.widget.SeekBar?) {
             }
 
-
         })
         (bSpeed.root.getChildAt(3) as LinearLayout)
             .children.forEach { it.setOnClickListener(speedClickLis) }
@@ -517,10 +548,7 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
     private val qualityClicks = View.OnClickListener { v ->
         try {
             val trackInfo = v.tag as Pair<*, *>
-            vm.selectVideoTrack(
-                trackInfo.second as TrackInfo,
-                trackInfo.first as Int
-            )
+            vm.selectVideoTrack(trackInfo.second as TrackInfo)
         } catch (_: Exception) {
         }
     }
@@ -651,4 +679,6 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
             View.SYSTEM_UI_FLAG_FULLSCREEN or View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
         actionBar?.hide()
     }
+
+    fun Int.toPX(): Float = this * resources.displayMetrics.density
 }
