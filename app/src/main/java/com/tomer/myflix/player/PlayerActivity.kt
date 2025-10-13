@@ -8,6 +8,7 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.HapticFeedbackConstants
+import android.view.TextureView
 import android.view.View
 import android.view.WindowInsets
 import android.view.animation.AccelerateInterpolator
@@ -36,7 +37,14 @@ import com.tomer.myflix.presentation.ui.models.TrackInfo
 import com.tomer.myflix.presentation.ui.views.GestureView
 import com.tomer.myflix.presentation.ui.views.SeekBar
 import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
+import java.io.ByteArrayOutputStream
+import java.io.File
 import java.text.DecimalFormat
 import java.util.Locale
 import kotlin.math.roundToInt
@@ -52,6 +60,8 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
 
     private var isBackPressed = false
     private var progressTracking = false
+
+    private var screenShotJob = CoroutineScope(Dispatchers.Main).launch { }
 
     //region LIFE CYCLES
 
@@ -95,6 +105,7 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
 
     override fun onDestroy() {
         super.onDestroy()
+        screenShotJob.cancel()
         Log.d("TAG--", "onDestroy: $isBackPressed")
 //        if (!isBackPressed)
 //            finishAffinity()
@@ -196,6 +207,33 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
             b.chipSkipClose.setAccentColor(colorAccent)
         }
         vm.isPlaying.observe(this) { isPlay ->
+            if (isPlay) {
+                screenShotJob.cancel()
+                screenShotJob = lifecycleScope.launch {
+                    while (isActive) {
+                        val t = b.exoPlayer.videoSurfaceView as TextureView? ?: continue
+                        val bmp = t.bitmap ?: continue
+                        val bytes = withContext(Dispatchers.Default) {
+                            val baos = ByteArrayOutputStream()
+                            cropTo16by9(bmp)
+                                .compress(Bitmap.CompressFormat.WEBP, 60, baos)
+                            return@withContext baos.toByteArray()
+                        }
+                        withContext(Dispatchers.IO) {
+                            File(
+                                com.tomer.myflix.data.local.file_cache.getCacheDir(
+                                    this@PlayerActivity,
+                                    vm.movieModel.flickId
+                                ), "poster.webp"
+                            ).outputStream()
+                                .buffered().use {
+                                    it.write(bytes)
+                                }
+                        }
+                        delay(5_000)
+                    }
+                }
+            } else screenShotJob.cancel()
             b.exoPlayer.keepScreenOn = isPlay
             b.btPlay.setImageResource(
                 if (isPlay) R.drawable.ic_pause
