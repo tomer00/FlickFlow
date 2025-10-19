@@ -1,6 +1,8 @@
 package com.tomer.myflix.common
 
 import com.google.gson.Gson
+import java.text.SimpleDateFormat
+import java.util.Date
 import kotlin.random.Random
 
 val gson by lazy { Gson() }
@@ -18,7 +20,7 @@ fun getRandomName(): String {
         .joinToString("")
 }
 
-fun Int.fromSecsToTimeStr(): String{
+fun Int.fromSecsToTimeStr(): String {
     val hour = this / 3600
     val min = (this % 3600) / 60
 
@@ -26,5 +28,11 @@ fun Int.fromSecsToTimeStr(): String{
     val m = if (min == 0 && hour == 0) "" else "${min}m"
 
     return "$h$m".trimEnd()
+}
 
+fun Long.toFormattedDate(): String {
+    if (this == 0L) return ""
+    // Define the desired date format "Month day, Year"
+    val sdf = SimpleDateFormat("MMMM d, yyyy", java.util.Locale.getDefault())
+    return sdf.format(Date(this))
 }
