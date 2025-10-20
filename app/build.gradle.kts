@@ -8,7 +8,7 @@ plugins {
 
 android {
     namespace = "com.tomer.myflix"
-    compileSdk = 35
+    compileSdk = 36
 
     defaultConfig {
         applicationId = "com.tomer.myflix"
@@ -52,6 +52,7 @@ dependencies {
     implementation(libs.androidx.ui.graphics)
     implementation(libs.androidx.ui.tooling.preview)
     implementation(libs.androidx.material3)
+    implementation(libs.androidx.work.runtime.ktx)
 
 
     implementation(libs.retrofit)
@@ -70,7 +71,9 @@ dependencies {
     implementation(libs.material)
     implementation(libs.androidx.activity)
     implementation(libs.androidx.constraintlayout)
-    implementation("androidx.palette:palette-ktx:1.0.0")
+    implementation(libs.androidx.palette.ktx)
+    implementation("com.pierfrancescosoffritti.androidyoutubeplayer:core:12.1.0")
+    implementation("com.github.Dimezis:BlurView:version-3.1.0")
 
     //Dagger-Hilt
     implementation(libs.dagger.hilt.android)
