@@ -12,28 +12,35 @@ import okio.buffer
 import okio.sink
 import java.io.ByteArrayOutputStream
 import java.io.File
-import java.util.LinkedList
-import java.util.Queue
 
 class CacheInterceptor(
     val context: Context
 ) : Interceptor {
 
     private var id: String? = null
+    private val MAX_PREV_COUNT = 9
 
     private var idFolder = getCacheDir(context, "tmp")
-    private val queueVideoTSFiles: Queue<String> = LinkedList<String>()
-    private val queueAudioTSFiles: Queue<String> = LinkedList<String>()
 
     fun setId(id: String) {
         this.id = id
         idFolder = getCacheDir(context, id)
     }
 
+    fun getPacketNo(uri: String): Int {
+        val i = uri.indexOf(".ts")
+        if (i < 0) return -1
+        val s = uri.substring(i - 4, i)
+        return s.toInt()
+    }
+
     override fun intercept(chain: Interceptor.Chain): Response {
         if (id == null) chain.proceed(chain.request())
         val request = chain.request()
         val url = request.url.toString()
+
+
+        //Handling of .m3u8 Files
 
         return if (url.endsWith(".m3u8")) {
             if (url.endsWith("master.m3u8"))
@@ -48,28 +55,32 @@ class CacheInterceptor(
                     request, chain, true
                 )
             }
+
+
+            ////////////////////////////////////////////////////////////////////////////////////////
+            ///////////////////////////HANDLING OF TS FILES/////////////////////////////////////////
+
         } else if (url.endsWith(".ts")) {
-            val name = url.substringAfter("$id/").replace('/', '-')
-            if (name.contains("audio")) {
-                queueAudioTSFiles.offer(name)
-                if (queueAudioTSFiles.size >= 6) File(idFolder, queueAudioTSFiles.poll()!!).delete()
-            } else {
-                queueVideoTSFiles.offer(name)
-                if (queueVideoTSFiles.size >= 6) {
-                    File(idFolder, queueVideoTSFiles.poll()!!).delete()
-                    val filesTs = idFolder.listFiles { it -> it.name.endsWith(".ts") }
-                    filesTs?.forEach { file ->
-                        if (!queueVideoTSFiles.contains(file.name)
-                            && !queueAudioTSFiles.contains(file.name)
-                        ) file.delete()
-                    }
-                }
+            val name = url.substringAfter("$id/")
+            val fileTs = File(idFolder, name)
+            if (fileTs.exists()) return returnResponse(fileTs, request, chain)
+
+            val parentFol = fileTs.parentFile!! //{ID}/1080 --- {ID}/audio0 etc
+            parentFol.mkdirs()
+            val curPacketNo = getPacketNo(name)
+
+            val filesTs =
+                parentFol.listFiles { it -> it.name.endsWith(".ts") } ?: return returnResponse(
+                    fileTs, request, chain
+                )
+            for (file in filesTs) {
+                val packetNo = getPacketNo(file.name)
+                if (packetNo > curPacketNo) continue
+                if (packetNo == 0 || packetNo == 1) continue
+                if (curPacketNo - packetNo < MAX_PREV_COUNT) continue
+                file.delete().also { Log.d("TAG--", "DELETE: $url ${idFolder.name}/${file.name}") }
             }
-            val res = returnResponse(
-                File(idFolder, name),
-                request, chain
-            )
-            res
+            returnResponse(fileTs, request, chain)
         } else chain.proceed(request)
     }
 
@@ -79,9 +90,9 @@ class CacheInterceptor(
         chain: Interceptor.Chain,
         doCheckEndTag: Boolean = false
     ): Response {
-        return if (cachedFile.exists()) {
+        return if (cachedFile.exists() && cachedFile.length() > 0) {
             // Serve cached file
-            Log.d("TAG--", "returnResponseFrom---Cache: ${cachedFile.name}")
+            Log.d("TAG--", "returnResponseFrom---Cache: ${cachedFile.canonicalPath}")
             val responseBody = ResponseBody.create(null, cachedFile.readBytes())
             Response.Builder()
                 .request(request)
@@ -98,14 +109,11 @@ class CacheInterceptor(
             val bufferedSink: BufferedSink = cachedFile.sink().buffer()
             Log.d(
                 "TAG--", "returnResponseFrom---Network: ${
-                    response.headers["Cf-Cache-Status"] ?: "NaN".toString()
+                    response.headers["Cf-Cache-Status"] ?: "NaN"
                         .removePrefix("[").removeSuffix("]")
                 } ${
-                    if (request.url.toString().contains("himu.in"))
-                        request.url.toString()
-                            .substring(request.url.toString().indexOf(".in/") + 4)
-                    else request.url.toString()
-                        .replace("https://storage.googleapis.com/flick-pub/", "")
+                    request.url.toString()
+                        .substring(request.url.toString().indexOf(".in/") + 4)
                 }"
             )
             response.body?.let { responseBody ->
