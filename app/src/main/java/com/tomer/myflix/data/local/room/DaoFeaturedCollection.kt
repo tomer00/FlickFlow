@@ -6,6 +6,7 @@ import androidx.room.OnConflictStrategy
 import androidx.room.Query
 import com.tomer.myflix.data.local.models.ModelCollection
 import com.tomer.myflix.data.local.models.ModelFeatured
+import com.tomer.myflix.data.local.models.ModelLastPlayed
 
 @Dao
 abstract class DaoFeaturedCollection {
@@ -27,4 +28,13 @@ abstract class DaoFeaturedCollection {
 
     @Query("SELECT * FROM collection")
     abstract fun getAllCollections(): List<ModelCollection>
+
+    @Insert(entity = ModelLastPlayed::class, onConflict = OnConflictStrategy.REPLACE)
+    abstract fun insertLastPlayed(lastPlayed: ModelLastPlayed)
+
+    @Query("DELETE FROM last_played WHERE flickId = :flickId")
+    abstract fun deleteLastPlayed(flickId: String)
+
+    @Query("SELECT * FROM last_played ORDER BY id DESC")
+    abstract fun getLastPlayedItems(): List<ModelLastPlayed>
 }

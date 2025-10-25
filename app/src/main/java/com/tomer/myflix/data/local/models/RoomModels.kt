@@ -47,6 +47,7 @@ data class ModelEpisode(
     val seriesFlickId: String,
     val imdbId: String,
     val title: String,
+    val posterHorizontal: String,
     val releaseDate: Long,
     val season: Int,
     val episode: Int,
@@ -79,6 +80,7 @@ data class ModelSeries(
     val screenShots: List<String>,
     val posterHorizontal: String,
     val posterVertical: String,
+    val trailerUrl: String,
 
     val seasonCount: Int,
     val accentCol: Int,
