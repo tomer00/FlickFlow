@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.wrapContentHeight
+import androidx.compose.foundation.layout.wrapContentSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -56,16 +57,26 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
+import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.text.font.Font
+import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.TextUnit
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import coil.compose.AsyncImage
+import com.tomer.myflix.R
+import com.tomer.myflix.common.fromSecsToTimeStr
+import com.tomer.myflix.common.toFormattedDate
 import com.tomer.myflix.data.local.models.ModelMovie
 import com.tomer.myflix.player.getNameLogoLink
 import com.tomer.myflix.presentation.screens.common.ShimmerImage
+import com.tomer.myflix.presentation.screens.homescreen.MovieItem
 import com.tomer.myflix.presentation.ui.views.YtPlayer
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -132,7 +143,7 @@ fun DetailMoviesScreen(onBack: () -> Unit, onMore: (String) -> Unit) {
             Column(
                 Modifier.fillMaxSize()
             ) {
-                val paddtop = size.width.div(LocalContext.current.resources.displayMetrics.density)
+                val paddtop = size.width.div(LocalResources.current.displayMetrics.density)
                     .times(.5625f * .7f)
                 Spacer(Modifier.size(paddtop.dp))
                 Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
@@ -142,14 +153,18 @@ fun DetailMoviesScreen(onBack: () -> Unit, onMore: (String) -> Unit) {
                             .padding(start = 20.dp)
                             .width(140.dp)
                             .height(210.dp)
-                            .clip(RoundedCornerShape(12.dp)),
+                            .graphicsLayer {
+                                shadowElevation = 20f
+                                shape = RoundedCornerShape(12.dp)
+                                clip = true
+                            },
                         contentDescription = null,
                         contentScale = ContentScale.Crop
                     )
                     Box(
                         Modifier
-                            .height(200.dp)
-                            .padding(20.dp, 4.dp)
+                            .height(220.dp)
+                            .padding(20.dp, 0.dp)
                             .weight(1f)
                     ) {
                         DetailsPlayButton(mod, vm)
@@ -162,9 +177,11 @@ fun DetailMoviesScreen(onBack: () -> Unit, onMore: (String) -> Unit) {
                         .weight(1f)
                         .verticalScroll(vm.scroll)
                 ) {
-                    Spacer(Modifier.size(20.dp))
-                    ScreenShots(mod.screenShots)
-                    Spacer(Modifier.size(20.dp))
+                    Spacer(Modifier.size(32.dp))
+                    if (mod.screenShots.isNotEmpty()) {
+                        ScreenShots(mod.screenShots)
+                        Spacer(Modifier.size(20.dp))
+                    }
                     Box(Modifier.fillMaxSize()) {
                         YtPlayer(
                             Modifier
@@ -177,7 +194,7 @@ fun DetailMoviesScreen(onBack: () -> Unit, onMore: (String) -> Unit) {
                         )
                     }
                     Spacer(Modifier.size(20.dp))
-                    Suggestions(vm,onMore)
+                    Suggestions(vm, onMore)
                 }
             }
 
@@ -191,7 +208,13 @@ fun DetailMoviesScreen(onBack: () -> Unit, onMore: (String) -> Unit) {
                 .safeContentPadding()
                 .absolutePadding(left = 12.dp)
                 .size(40.dp)
-                .background(Color(0x60000000), CircleShape)
+                .border(2.dp, Color.White.copy(.16f), CircleShape)
+                .background(
+                    if (mod?.accentCol != null) {
+                        Color(mod.accentCol)
+                            .copy(.38f)
+                    } else Color(0x61000000), CircleShape
+                )
                 .clickable(
                     interactionSource = remember { MutableInteractionSource() },
                     indication = null,
@@ -206,6 +229,26 @@ fun DetailMoviesScreen(onBack: () -> Unit, onMore: (String) -> Unit) {
                 colorFilter = ColorFilter.tint(Color.White),
             )
         }
+        if (mod?.isHd == true)
+            Box(
+                Modifier
+                    .safeContentPadding()
+                    .absolutePadding(left = 56.dp)
+                    .size(40.dp)
+                    .border(2.dp, Color.White.copy(.16f), CircleShape)
+                    .background(
+                        Color(mod.accentCol)
+                            .copy(.38f), CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Image(
+                    painter = painterResource(R.drawable.ic_hd),
+                    contentDescription = null,
+                    colorFilter = ColorFilter.tint(Color.White),
+                    modifier = Modifier.padding(8.dp)
+                )
+            }
         //endregion BACK BUTTON
     }
 }
@@ -214,14 +257,54 @@ fun DetailMoviesScreen(onBack: () -> Unit, onMore: (String) -> Unit) {
 fun DetailsPlayButton(mod: ModelMovie, vm: VMDetailMovies) {
     val context = LocalContext.current
     Column {
-        Row(Modifier.fillMaxWidth()) {
-            Text(text = "Audio : ")
+        Row {
             Text(
-                text = mod.audioTracks.joinToString(" / "),
-                maxLines = 1,
-                modifier = Modifier.basicMarquee()
+                "🌟 ${mod.rating}", style = MaterialTheme.typography.bodyLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp, color = Color.White,
+                )
+            )
+            Text(
+                "  🕚 ${mod.runtimeSecs.fromSecsToTimeStr()}",
+                style = MaterialTheme.typography.bodyLarge.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = 18.sp, color = Color.White,
+                )
             )
         }
+        Text(
+            "🗓 ${mod.releaseDate.toFormattedDate()}",
+            style = MaterialTheme.typography.bodyLarge.copy(
+                fontWeight = FontWeight.Bold,
+                fontSize = 18.sp, color = Color.White,
+            )
+        )
+        if (mod.audioTracks.isNotEmpty())
+            Row(Modifier.fillMaxWidth()) {
+                Text(
+                    text = "Audio : ", color = Color.White,
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                )
+                Text(
+                    text = mod.audioTracks.joinToString(" / "),
+                    maxLines = 1, color = Color.White,
+                    modifier = Modifier.basicMarquee(),
+                    style = MaterialTheme.typography.bodyLarge.copy(
+                        fontWeight = FontWeight.Bold,
+                        fontSize = 18.sp
+                    )
+                )
+            }
+        Spacer(Modifier.weight(1f))
+        Text(
+            mod.summary, maxLines = 4, style = MaterialTheme.typography.bodyLarge.copy(
+                fontSize = 16.sp, color = Color.White,
+            ),
+            overflow = TextOverflow.Ellipsis
+        )
         Spacer(Modifier.weight(1f))
         Box(
             Modifier
@@ -243,16 +326,22 @@ fun DetailsPlayButton(mod: ModelMovie, vm: VMDetailMovies) {
                     )
                 } else
                     Row(
-                        Modifier.padding(0.dp, 8.dp)
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
                         val textButton = vm.textPlayButton.collectAsState().value
                         if (textButton == "Watch Now")
                             Image(
+                                modifier = Modifier.size(26.dp),
                                 imageVector = Icons.Rounded.PlayArrow,
                                 contentDescription = null,
                                 colorFilter = ColorFilter.tint(Color.White)
                             )
-                        Text(textButton, color = Color.White)
+                        Text(
+                            textButton,
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontFamily = R.font.poppins_semibold.getFont()
+                        )
                     }
             }
         }
@@ -299,8 +388,9 @@ fun LogoImageComp(modifier: Modifier, flickId: String, title: String) {
         )
         Text(
             text = title,
-            fontSize = 40.sp,
-            fontWeight = FontWeight.Bold,
+            fontSize = 52.sp,
+            color = Color.White.copy(.6f),
+            fontFamily = R.font.bebas_neue.getFont(),
             textAlign = TextAlign.Center,
             modifier = Modifier.graphicsLayer {
                 scaleX = textScale.value
@@ -311,8 +401,10 @@ fun LogoImageComp(modifier: Modifier, flickId: String, title: String) {
 }
 
 @Composable
-fun Suggestions(vm: VMDetailMovies,onMore: (String) -> Unit) {
-    val itmes = vm.listSuggestions.collectAsState().value
+fun Suggestions(vm: VMDetailMovies, onMore: (String) -> Unit) {
+    val items = vm.listSuggestions.collectAsState().value
+
+    if (items.isEmpty()) return
     Column(
         Modifier
             .fillMaxWidth()
@@ -321,51 +413,42 @@ fun Suggestions(vm: VMDetailMovies,onMore: (String) -> Unit) {
     ) {
 
         Spacer(Modifier.size(20.dp))
-        Text(
-            "More like this...",
-            color = Color.White,
-            style = MaterialTheme.typography.headlineMedium,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Start,
-            modifier = Modifier
-                .fillMaxWidth()
-                .absolutePadding(8.dp)
-        )
-        if (itmes.isEmpty()) return@Column
+        Heading("More like this...")
+        if (items.isEmpty()) return@Column
         val modifier = Modifier
             .weight(1f)
             .wrapContentHeight()
         for (i in 1..5 step 3) {
             Row {
                 Spacer(Modifier.size(8.dp))
-                val mod = itmes[i + 0].collectAsState().value
+                val mod = items[i + 0].collectAsState().value
                 SuggestItem(
                     mod.isShimmer.not(),
                     mod.posterVerti,
                     mod.title, mod.isHd,
                     modifier
                 ) {
-                    onMore(mod.flickId)
+                    onMore(mod.flickId + mod.imdbId)
                 }
                 Spacer(Modifier.size(8.dp))
-                val mod1 = itmes[i + 1].collectAsState().value
+                val mod1 = items[i + 1].collectAsState().value
                 SuggestItem(
                     mod1.isShimmer.not(),
                     mod1.posterVerti,
                     mod1.title, mod1.isHd,
                     modifier
                 ) {
-                    onMore(mod1.flickId)
+                    onMore(mod1.flickId + mod1.imdbId)
                 }
                 Spacer(Modifier.size(8.dp))
-                val mod2 = itmes[i + 2].collectAsState().value
+                val mod2 = items[i + 2].collectAsState().value
                 SuggestItem(
                     mod2.isShimmer.not(),
                     mod2.posterVerti,
                     mod2.title, mod2.isHd,
                     modifier
                 ) {
-                    onMore(mod2.flickId)
+                    onMore(mod2.flickId + mod2.imdbId)
                 }
                 Spacer(Modifier.size(8.dp))
             }
@@ -379,24 +462,35 @@ fun SuggestItem(
     isLoaded: Boolean,
     posterVerti: String,
     title: String,
-    isHD: Boolean? = null,
+    isHD: Boolean,
     modifier: Modifier,
     onItemClicked: () -> Unit
 ) {
     Box(modifier) {
-        Column {
-            ShimmerImage(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(176.dp)
-                    .clip(RoundedCornerShape(12.dp))
-                    .border(1.dp, Color.White.copy(.2f), RoundedCornerShape(12.dp))
-                    .clickable {
-                        if (isLoaded)
-                            onItemClicked()
-                    },
-                model = posterVerti
-            )
+        Column(
+            Modifier
+                .fillMaxWidth()
+                .wrapContentHeight()
+        ) {
+            Box(
+                Modifier.wrapContentSize()
+            ) {
+                ShimmerImage(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(176.dp)
+                        .clip(RoundedCornerShape(12.dp))
+                        .border(
+                            1.dp, Color.White.copy(.2f),
+                            RoundedCornerShape(12.dp)
+                        )
+                        .clickable {
+                            if (isLoaded)
+                                onItemClicked()
+                        },
+                    model = posterVerti
+                )
+            }
             Spacer(Modifier.size(2.dp))
             Text(
                 text = title,
@@ -414,12 +508,7 @@ fun SuggestItem(
 
 @Composable
 fun ScreenShots(items: List<String>) {
-    Text(
-        "Screen Shots",
-        color = Color.White,
-        style = MaterialTheme.typography.headlineMedium,
-        fontWeight = FontWeight.Bold
-    )
+    Heading("Screen Shots")
     Spacer(Modifier.size(8.dp))
     Row(
         Modifier
@@ -443,11 +532,22 @@ fun ScreenShots(items: List<String>) {
     }
 }
 
+@Composable
+fun Heading(text: String, size: TextUnit = 31.sp) {
+    Text(
+        text, color = Color.White.copy(.9f),
+        fontFamily = R.font.poppins_semibold.getFont(),
+        fontSize = size,
+        modifier = Modifier
+            .fillMaxWidth()
+            .absolutePadding(8.dp)
+    )
+}
 
 
-
-
-
+fun Int.getFont(): FontFamily {
+    return FontFamily(Font(this))
+}
 
 
 
