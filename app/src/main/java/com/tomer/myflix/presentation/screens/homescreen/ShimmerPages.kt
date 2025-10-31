@@ -29,18 +29,18 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.lerp
 import com.tomer.myflix.presentation.screens.common.shimmerEffect
-import com.tomer.myflix.presentation.ui.models.MovieItemModel
+import com.tomer.myflix.presentation.ui.models.PlayableItemModel
 import kotlin.math.absoluteValue
 
 @Composable
 fun ShimmerHome() {
     val tempList = listOf(
-        MovieItemModel(0, "", "", "", "", ""),
-        MovieItemModel(1, "", "", "", "", ""),
-        MovieItemModel(2, "", "", "", "", ""),
-        MovieItemModel(3, "", "", "", "", ""),
-        MovieItemModel(4, "", "", "", "", ""),
-        MovieItemModel(5, "", "", "", "", ""),
+        PlayableItemModel(0, "", "", "", "", "",true),
+        PlayableItemModel(1, "", "", "", "", "",true),
+        PlayableItemModel(2, "", "", "", "", "",true),
+        PlayableItemModel(3, "", "", "", "", "",true),
+        PlayableItemModel(4, "", "", "", "", "",true),
+        PlayableItemModel(5, "", "", "", "", "",true),
     )
     val pagerState = rememberPagerState(2) { tempList.size }
     Column(
