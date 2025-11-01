@@ -29,6 +29,7 @@ class RetryInterceptor(private val maxRetries: Int = 3) : Interceptor {
             } catch (e: IOException) {
                 exception = e
             }
+            response?.close()
             // Wait before retrying
             if (attemptCount < maxRetries) {
                 try {
@@ -40,6 +41,7 @@ class RetryInterceptor(private val maxRetries: Int = 3) : Interceptor {
         }
 
         if (exception != null) {
+            exception.printStackTrace()
             throw exception
         }
         // Return the latest failed response if all retries failed
