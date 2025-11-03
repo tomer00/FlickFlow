@@ -29,7 +29,7 @@ interface ApiFlickServer {
     suspend fun getAllEpisodesOfSeries(
         @Query("seriesId") seriesId: String,
         @Query("season") season: Int,
-    ): List<Content>
+    ): Response<List<Content>>
 
     @GET("/api/v1/featured")
     suspend fun getFeatured(): Response<List<ModelFeatured>>
