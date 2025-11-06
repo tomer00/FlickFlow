@@ -9,8 +9,7 @@ import com.tomer.myflix.data.local.models.ModelMovie
 import com.tomer.myflix.data.local.models.ModelSeries
 import com.tomer.myflix.data.remote.retro.ApiFlickServer
 import com.tomer.myflix.data.remote.retro.ApiOmDBServer
-import com.tomer.myflix.data.remote.retro.modals.DtoCanPlay
-import com.tomer.myflix.data.remote.retro.modals.DtoOmdb
+import com.tomer.myflix.data.remote.retro.modals.Content
 import com.tomer.myflix.data.remote.retro.modals.DtoSuggest
 import com.tomer.myflix.data.remote.retro.utils.toFLOAT
 import com.tomer.myflix.data.remote.retro.utils.toINT
@@ -24,7 +23,7 @@ import okhttp3.ResponseBody.Companion.toResponseBody
 import javax.inject.Inject
 
 class RepoRemoteRetro @Inject constructor(
-    @ApplicationContext private val context: Context,
+    @param:ApplicationContext private val context: Context,
     private val apiFlickServer: ApiFlickServer,
     private val apiOmDBServer: ApiOmDBServer
 ) : RepoRemote {
@@ -32,13 +31,7 @@ class RepoRemoteRetro @Inject constructor(
         return withContext(Dispatchers.IO) {
             val (resServer, modOMDB) =
                 if (imdbId.isEmpty()) {
-                    val modServer = apiFlickServer.getMovie(flickId)
-                    val modOMDB: DtoOmdb? = try {
-                        apiOmDBServer.getDetail(imdbId)
-                    } catch (_: Exception) {
-                        null
-                    }
-                    modServer to modOMDB
+                    apiFlickServer.getMovie(flickId) to null
                 } else {
                     val modServer = async { apiFlickServer.getMovie(flickId) }
                     val modOMDB = async {
@@ -111,7 +104,8 @@ class RepoRemoteRetro @Inject constructor(
                     season = modServer.season,
                     episode = modServer.episode,
                     audioTracks = modServer.audioTracks,
-                    runtimeSecs = modServer.runtimeSeconds
+                    runtimeSecs = modServer.runtimeSeconds,
+                    posterHorizontal = modServer.posterVertical
                 )
             )
         }
@@ -121,13 +115,7 @@ class RepoRemoteRetro @Inject constructor(
         return withContext(Dispatchers.IO) {
             val (resServer, modOMDB) =
                 if (imdbId.isEmpty()) {
-                    val modServer = apiFlickServer.getSeries(flickId)
-                    val modOMDB: DtoOmdb? = try {
-                        apiOmDBServer.getDetail(imdbId)
-                    } catch (_: Exception) {
-                        null
-                    }
-                    modServer to modOMDB
+                    apiFlickServer.getSeries(flickId) to null
                 } else {
                     val modServer = async { apiFlickServer.getSeries(flickId) }
                     val modOMDB = async {
@@ -168,17 +156,28 @@ class RepoRemoteRetro @Inject constructor(
                     posterHorizontal = modServer.posterHorizontal,
                     posterVertical = modServer.posterVertical,
                     seasonCount = modServer.seasonCount,
-                    accentCol = col
+                    accentCol = col,
+                    trailerUrl = modServer.trailerUrl
                 )
             )
         }
+    }
+
+    override suspend fun getAllEpisodesOfSeries(seriesFlickId: String, season: Int): List<Content> {
+        val resEpisodes = try {
+            apiFlickServer.getAllEpisodesOfSeries(seriesFlickId, season)
+        } catch (_: Exception) {
+            retrofit2.Response.error(400, "".toResponseBody(null))
+        }
+        if (resEpisodes.isSuccessful) return resEpisodes.body() ?: emptyList()
+        return emptyList()
     }
 
     override suspend fun getFeaturedList(): List<ModelFeatured> {
         val resFea = try {
             apiFlickServer.getFeatured()
         } catch (_: Exception) {
-            retrofit2.Response.error<List<ModelFeatured>>(400, "".toResponseBody(null))
+            retrofit2.Response.error(400, "".toResponseBody(null))
         }
         if (resFea.isSuccessful) return resFea.body() ?: emptyList()
         return emptyList()
@@ -194,7 +193,7 @@ class RepoRemoteRetro @Inject constructor(
             else
                 apiFlickServer.canPlayEpisode(flickId)
         } catch (_: Exception) {
-            retrofit2.Response.error<DtoCanPlay>(400, "".toResponseBody(null))
+            retrofit2.Response.error(400, "".toResponseBody(null))
         }
         return if (res.isSuccessful) {
             res.body()?.canPlay == true
@@ -205,7 +204,7 @@ class RepoRemoteRetro @Inject constructor(
         val resSuggestion = try {
             apiFlickServer.getSuggestionList(flickId)
         } catch (_: Exception) {
-            retrofit2.Response.error<List<DtoSuggest>>(400, "".toResponseBody(null))
+            retrofit2.Response.error(400, "".toResponseBody(null))
         }
         if (resSuggestion.isSuccessful) return resSuggestion.body() ?: emptyList()
         return emptyList()
