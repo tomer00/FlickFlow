@@ -35,6 +35,7 @@ class VMDetailSeries @Inject constructor(
     val mod = MutableStateFlow<ModelSeries?>(null)
     val col = MutableStateFlow(Color.Red)
     val scroll = ScrollState(0)
+    val selectedSeason = MutableStateFlow(0)
 
     val listSuggestions = MutableStateFlow<List<MutableStateFlow<PlayableItemModel>>>(emptyList())
     val episodes = MutableStateFlow<List<List<ModelEpisode>>>(emptyList())
@@ -45,7 +46,7 @@ class VMDetailSeries @Inject constructor(
     val showProg = MutableStateFlow(false)
     val textPlayButton = MutableStateFlow("Watch Now")
 
-    fun getCanPlayNow(con: Context,flickId: String) {
+    fun getCanPlayNow(con: Context, flickId: String) {
         viewModelScope.launch {
             showProg.emit(true)
             val res = repoEpisode.canPlay(flickId)
@@ -67,6 +68,23 @@ class VMDetailSeries @Inject constructor(
 
     private var flickId = ""
 
+    var jobSeasonChangeJob = viewModelScope.launch {}
+
+    fun selectSeason(season: Int) {
+        viewModelScope.launch {
+            selectedSeason.emit(season)
+        }
+        jobSeasonChangeJob.cancel()
+        jobSeasonChangeJob = viewModelScope.launch {
+            val episodesOfSeasonX = repoSeries.getAllEpisodesOfSeries(flickId, season + 1)
+            val list = mutableListOf(episodesOfSeasonX)
+            repeat((mod.value?.seasonCount ?: 1) - 1) {
+                list.add(emptyList())
+            }
+            episodes.emit(list)
+        }
+    }
+
     init {
         val data = savedStateHandle.get<String>("id") ?: "qwertyui"
         Log.d("TAG--", "init: $data")
@@ -85,6 +103,7 @@ class VMDetailSeries @Inject constructor(
                 list.add(emptyList())
             }
             episodes.emit(list)
+            audioTracks.emit(list.getOrNull(0)?.getOrNull(0)?.audioTracks ?: emptyList())
         }
 
         viewModelScope.launch {
