@@ -8,21 +8,28 @@
     android:animateLayoutChanges="true"
     tools:context=".player.PlayerActivity">
 
-    <androidx.media3.ui.PlayerView
-        android:id="@+id/exoPlayer"
+    <eightbitlab.com.blurview.BlurTarget
+        android:id="@+id/blurTarget"
         android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:background="@color/black"
-        app:hide_on_touch="true"
-        app:show_buffering="never"
-        app:use_controller="false" />
+        android:layout_height="match_parent">
 
-    <ImageView
-        android:id="@+id/imgThumb"
-        android:layout_width="match_parent"
-        android:layout_height="match_parent"
-        android:contentDescription="@string/app_name"
-        android:scaleType="centerCrop" />
+        <androidx.media3.ui.PlayerView
+            android:id="@+id/exoPlayer"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:background="@color/black"
+            app:hide_on_touch="true"
+            app:show_buffering="never"
+            app:surface_type="texture_view"
+            app:use_controller="false" />
+
+        <ImageView
+            android:id="@+id/imgThumb"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:contentDescription="@string/app_name"
+            android:scaleType="centerCrop" />
+    </eightbitlab.com.blurview.BlurTarget>
 
     <com.tomer.myflix.presentation.ui.views.GestureView
         android:id="@+id/gestureView"
@@ -38,16 +45,21 @@
         android:orientation="horizontal"
         app:layout_constraintTop_toTopOf="parent">
 
-        <ImageView
-            android:id="@+id/btBack"
+        <eightbitlab.com.blurview.BlurView
+            android:id="@+id/btBackBlur"
             android:layout_width="42dp"
             android:layout_height="42dp"
             android:layout_marginStart="20dp"
             android:layout_marginTop="20dp"
-            android:background="@drawable/ripple_round_bg"
-            android:contentDescription="@string/app_name"
-            android:padding="12dp"
-            android:src="@drawable/ic_back" />
+            android:background="@drawable/blur_background">
+
+            <ImageView
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:contentDescription="@string/app_name"
+                android:padding="12dp"
+                android:src="@drawable/ic_back" />
+        </eightbitlab.com.blurview.BlurView>
 
         <TextView
             android:id="@+id/tvName"
@@ -78,10 +90,11 @@
             android:rotation="180"
             app:layout_constraintBottom_toBottomOf="parent" />
 
-        <com.tomer.myflix.presentation.ui.views.ChipBgView
-            android:id="@+id/chipSpeed"
+        <eightbitlab.com.blurview.BlurView
+            android:id="@+id/chipSpeedBlur"
             android:layout_width="0dp"
             android:layout_height="0dp"
+            android:background="@drawable/blur_background"
             app:layout_constraintBottom_toBottomOf="@id/btSpeed"
             app:layout_constraintEnd_toEndOf="@id/btSpeed"
             app:layout_constraintStart_toStartOf="@id/btSpeed"
@@ -177,6 +190,16 @@
         android:layout_width="match_parent"
         android:layout_height="match_parent">
 
+        <eightbitlab.com.blurview.BlurView
+            android:id="@+id/btPlayBlur"
+            android:layout_width="88dp"
+            android:layout_height="88dp"
+            android:background="@drawable/blur_background"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
+
         <ImageView
             android:id="@+id/btPlay"
             android:layout_width="88dp"
@@ -189,6 +212,16 @@
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
+
+        <eightbitlab.com.blurview.BlurView
+            android:id="@+id/btPrevBlur"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:background="@drawable/blur_background"
+            app:layout_constraintBottom_toBottomOf="@id/btPrev"
+            app:layout_constraintEnd_toEndOf="@id/btPrev"
+            app:layout_constraintStart_toStartOf="@id/btPrev"
+            app:layout_constraintTop_toTopOf="@id/btPrev" />
 
         <ImageView
             android:id="@+id/btPrev"
@@ -203,6 +236,16 @@
             app:layout_constraintHorizontal_bias="0.8"
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toTopOf="parent" />
+
+        <eightbitlab.com.blurview.BlurView
+            android:id="@+id/btNextBlur"
+            android:layout_width="0dp"
+            android:layout_height="0dp"
+            android:background="@drawable/blur_background"
+            app:layout_constraintBottom_toBottomOf="@id/btNext"
+            app:layout_constraintEnd_toEndOf="@id/btNext"
+            app:layout_constraintStart_toStartOf="@id/btNext"
+            app:layout_constraintTop_toTopOf="@id/btNext" />
 
         <ImageView
             android:id="@+id/btNext"
@@ -220,16 +263,22 @@
 
     </androidx.constraintlayout.widget.ConstraintLayout>
 
-    <ProgressBar
-        android:id="@+id/progBuffering"
+    <eightbitlab.com.blurview.BlurView
+        android:id="@+id/progBufferingBlur"
         android:layout_width="88dp"
         android:layout_height="88dp"
-        android:background="@drawable/ripple_round_bg"
-        android:progressTint="@color/white"
+        android:background="@drawable/blur_background"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent">
+
+        <ProgressBar
+            android:layout_width="88dp"
+            android:layout_height="88dp"
+            android:progressTint="@color/white" />
+    </eightbitlab.com.blurview.BlurView>
+
 
     <com.tomer.myflix.presentation.ui.views.SeekBar
         android:id="@+id/seekBar"
@@ -272,10 +321,11 @@
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent" />
 
-    <RelativeLayout
-        android:id="@+id/ll2xHelper"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
+    <eightbitlab.com.blurview.BlurView
+        android:id="@+id/blur2x"
+        android:layout_width="80dp"
+        android:layout_height="34dp"
+        android:background="@drawable/blur_background"
         android:padding="8dp"
         android:visibility="invisible"
         app:layout_constraintBottom_toBottomOf="parent"
@@ -284,16 +334,10 @@
         app:layout_constraintTop_toTopOf="parent"
         app:layout_constraintVertical_bias="0.08">
 
-
-        <com.tomer.myflix.presentation.ui.views.ChipBgView
-            android:id="@+id/chip2x"
-            android:layout_width="80dp"
-            android:layout_height="34dp" />
-
         <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_centerInParent="true">
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:gravity="center">
 
             <ImageView
                 android:layout_width="22dp"
@@ -311,86 +355,102 @@
                 android:contentDescription="@string/app_name"
                 android:src="@drawable/ic_fast_forward" />
         </LinearLayout>
-    </RelativeLayout>
+    </eightbitlab.com.blurview.BlurView>
 
-
-    <LinearLayout
-        android:id="@+id/sidePanel"
+    <eightbitlab.com.blurview.BlurView
+        android:id="@+id/blurSidePanel"
         android:layout_width="240dp"
         android:layout_height="wrap_content"
         android:layout_margin="12dp"
         android:animateLayoutChanges="true"
-        android:background="@drawable/chip_bg"
+        android:background="@drawable/blur_background_corner"
         android:elevation="8dp"
-        android:orientation="vertical"
         android:translationX="260dp"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent">
 
-    <LinearLayout
-        android:id="@+id/llSpeed"
+        <LinearLayout
+            android:id="@+id/sidePanel"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:animateLayoutChanges="true"
+            android:orientation="vertical" />
+    </eightbitlab.com.blurview.BlurView>
+
+
+    <eightbitlab.com.blurview.BlurView
+        android:id="@+id/blurLlSpeed"
         android:layout_width="220dp"
         android:layout_height="wrap_content"
         android:layout_margin="12dp"
         android:animateLayoutChanges="true"
-        android:background="@drawable/chip_bg"
+        android:background="@drawable/blur_background_corner"
         android:elevation="8dp"
-        android:orientation="vertical"
         android:translationX="260dp"
         app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent" />
+        app:layout_constraintEnd_toEndOf="parent">
 
-    <RelativeLayout
-        android:id="@+id/btSkip"
+        <LinearLayout
+            android:id="@+id/llSpeed"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:animateLayoutChanges="true"
+            android:orientation="vertical" />
+    </eightbitlab.com.blurview.BlurView>
+
+
+    <eightbitlab.com.blurview.BlurView
+        android:id="@+id/btSkipBlur"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
         android:layout_marginEnd="20dp"
         android:layout_marginBottom="8dp"
+        android:background="@drawable/blur_background"
         android:translationX="280dp"
         app:layout_constraintBottom_toTopOf="@id/tvTimerTotal"
         app:layout_constraintEnd_toEndOf="parent">
 
-        <com.tomer.myflix.presentation.ui.views.ChipBgView
-            android:id="@+id/chipSkip"
-            android:layout_width="80dp"
-            android:layout_height="36dp" />
-
-        <TextView
+        <RelativeLayout
+            android:id="@+id/btSkip"
             android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_centerInParent="true"
-            android:fontFamily="@font/quantico_bold_italic"
-            android:text="Skip"
-            android:textColor="@color/white"
-            android:textSize="18sp" />
-    </RelativeLayout>
+            android:layout_height="wrap_content">
+
+            <View
+                android:layout_width="80dp"
+                android:layout_height="36dp" />
+
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_centerInParent="true"
+                android:fontFamily="@font/quantico_bold_italic"
+                android:text="Skip"
+                android:textColor="@color/white"
+                android:textSize="18sp" />
+        </RelativeLayout>
+    </eightbitlab.com.blurview.BlurView>
 
 
-    <RelativeLayout
-        android:id="@+id/btSkipClose"
+    <eightbitlab.com.blurview.BlurView
+        android:id="@+id/btSkipCloseBlur"
         android:layout_width="30dp"
         android:layout_height="30dp"
         android:layout_marginEnd="16dp"
+        android:background="@drawable/blur_background"
         android:translationX="320dp"
-        app:layout_constraintBottom_toBottomOf="@+id/btSkip"
-        app:layout_constraintEnd_toStartOf="@+id/btSkip"
-        app:layout_constraintTop_toTopOf="@+id/btSkip">
-
-        <com.tomer.myflix.presentation.ui.views.ChipBgView
-            android:id="@+id/chipSkipClose"
-            android:layout_width="match_parent"
-            android:layout_height="match_parent" />
+        app:layout_constraintBottom_toBottomOf="@+id/btSkipBlur"
+        app:layout_constraintEnd_toStartOf="@+id/btSkipBlur"
+        app:layout_constraintTop_toTopOf="@+id/btSkipBlur">
 
         <ImageView
-            android:id="@+id/btImgCloseSkip"
             android:layout_width="match_parent"
             android:layout_height="match_parent"
-            android:background="@color/trans"
-            android:contentDescription="Close"
-            android:onClick="onClick"
+            android:contentDescription="@string/app_name"
+            android:onClick="clickClose"
+            android:padding="2dp"
             android:src="@drawable/ic_close" />
-    </RelativeLayout>
+    </eightbitlab.com.blurview.BlurView>
 
 
 </androidx.constraintlayout.widget.ConstraintLayout>
