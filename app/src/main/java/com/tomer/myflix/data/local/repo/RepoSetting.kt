@@ -1,6 +1,9 @@
 package com.tomer.myflix.data.local.repo
 
+import android.util.Log
 import com.tomer.myflix.common.gson
+import com.tomer.myflix.data.local.models.ModelLastPlayed
+import com.tomer.myflix.data.local.room.DaoFeaturedCollection
 import com.tomer.myflix.data.local.room.DaoSettings
 import com.tomer.myflix.presentation.ui.models.TrackInfo
 import javax.inject.Inject
@@ -14,12 +17,14 @@ interface RepoSettings {
     fun savePlaybackSpeed(speed: Float)
     fun savePlayedMsAndSeekPos(playedMs: Long, seekPosition: Float)
     fun saveTrackInfo(type: TrackType, trackInfo: TrackInfo?)
+    fun saveLastPlayed(mod: ModelLastPlayed)
     fun setCurrentId(id: String?)
     fun setSaveMode(mode: Boolean)
 }
 
 class RepoSettingsRoom @Inject constructor(
-    private val daoSettings: DaoSettings
+    private val daoSettings: DaoSettings,
+    private val daoRepoFeatured: DaoFeaturedCollection
 ) : RepoSettings {
 
     private var id: String? = null
@@ -76,6 +81,13 @@ class RepoSettingsRoom @Inject constructor(
                 ), id!!
             )
         }
+    }
+
+    override fun saveLastPlayed(mod: ModelLastPlayed) {
+        if (id.isNullOrEmpty()) return
+        if (!canSave) return
+        daoRepoFeatured.deleteLastPlayed(id!!)
+        daoRepoFeatured.insertLastPlayed(mod)
     }
 
 }
