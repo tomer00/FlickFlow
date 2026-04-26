@@ -14,6 +14,8 @@ data class DtoEpisode(
     val posterVertical: String,
     @SerializedName("releasedTime")
     val releasedTime: Long,
+    @SerializedName("runtimeSeconds")
+    val runtimeSeconds: Int,
     @SerializedName("season")
     val season: Int,
     @SerializedName("seriesFlickId")
@@ -39,6 +41,8 @@ data class DtoMovie(
     val posterVertical: String,
     @SerializedName("releasedTime")
     val releasedTime: Long,
+    @SerializedName("runtimeSeconds")
+    val runtimeSeconds: Int,
     @SerializedName("screenShots")
     val screenShots: List<String>,
     @SerializedName("serverNo")
@@ -65,5 +69,7 @@ data class DtoSeries(
     @SerializedName("seasonCount")
     val seasonCount: Int,
     @SerializedName("title")
-    val title: String
+    val title: String,
+    @SerializedName("trailerUrl")
+    val trailerUrl: String
 )
