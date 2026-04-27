@@ -274,8 +274,8 @@
         app:layout_constraintTop_toTopOf="parent">
 
         <ProgressBar
-            android:layout_width="88dp"
-            android:layout_height="88dp"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
             android:progressTint="@color/white" />
     </eightbitlab.com.blurview.BlurView>
 
