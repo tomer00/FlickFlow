@@ -84,6 +84,7 @@ class GestureView : View {
 
     private val pathForward = Path()
     private val pathBackward = Path()
+    private val rectValidRegion = RectF()
 
     private val colWhiteZeroAlpha = Color.argb(0f, 1f, 1f, 1f)
     private var colPCircle = Color.argb(.2f, 1f, 1f, 1f)
@@ -216,6 +217,7 @@ class GestureView : View {
                 postInvalidate()
             }
 
+
         })
 
     //endregion :: GLOBALS
@@ -286,6 +288,13 @@ class GestureView : View {
             rectBright.top - dp12,
             rectBright.right + dp12,
             y + progHeight + dp12
+        )
+
+        val width10P = w.times(.03f)
+        val height10P = h / 10f
+        rectValidRegion.set(
+            width10P, height10P,
+            w.toFloat() - width10P, h.toFloat() - height10P
         )
     }
 
@@ -390,11 +399,21 @@ class GestureView : View {
     private var isLongClicked = false
     private var controlHidingDelayJob = CoroutineScope(Dispatchers.Main).launch { delay(100) }
     private var alphaAnimator = ValueAnimator.ofInt(0, 0)
+    private var isValid = true
 
     @SuppressLint("ClickableViewAccessibility", "InlinedApi")
     override fun onTouchEvent(event: MotionEvent): Boolean {
-        gestureDetector.onTouchEvent(event)
+
+        if (event.action == MotionEvent.ACTION_DOWN) {
+            if (rectValidRegion.contains(event.x, event.y)) {
+                isValid = true
+                gestureLis?.requestVolSync()
+            }
+        }
+        if (isValid)
+            gestureDetector.onTouchEvent(event)
         if (event.action == MotionEvent.ACTION_UP) {
+            isValid = false
             if (isLongClicked) {
                 isLongClicked = false
                 performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY_RELEASE)
@@ -447,8 +466,7 @@ class GestureView : View {
             if (!canScrollUpONCE)
                 canScrollUpONCE = true
             postInvalidate()
-        } else if (event.action == MotionEvent.ACTION_DOWN) gestureLis?.requestVolSync()
-        gestureDetector.onTouchEvent(event)
+        }
         return true
     }
 
@@ -562,6 +580,5 @@ class GestureView : View {
             TypedValue.COMPLEX_UNIT_DIP, this.toFloat(), Resources.getSystem().displayMetrics
         )
     }
-
 
 }
