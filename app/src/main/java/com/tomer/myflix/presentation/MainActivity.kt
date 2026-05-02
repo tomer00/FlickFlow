@@ -1,87 +1,138 @@
 package com.tomer.myflix.presentation
 
-import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.foundation.Image
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.material3.Scaffold
+import androidx.compose.foundation.layout.safeContentPadding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.Button
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
-import com.google.gson.Gson
-import com.tomer.myflix.data.models.LinkPair
-import com.tomer.myflix.data.models.TimePair
-import com.tomer.myflix.player.PlayerActivity
-import com.tomer.myflix.presentation.ui.models.MoviePlayerModalUi
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.unit.dp
+import androidx.navigation.NavType
+import androidx.navigation.compose.NavHost
+import androidx.navigation.compose.composable
+import androidx.navigation.compose.rememberNavController
+import androidx.navigation.navArgument
+import com.tomer.myflix.presentation.screens.detailMovie.DetailMoviesScreen
+import com.tomer.myflix.presentation.screens.detailSeries.DetailSeriesScreen
+import com.tomer.myflix.presentation.screens.homescreen.HomeScreen
 import com.tomer.myflix.presentation.ui.theme.FlickFlowTheme
+import dagger.hilt.android.AndroidEntryPoint
+import kotlinx.coroutines.launch
 
+@AndroidEntryPoint
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         setContent {
             FlickFlowTheme {
-                Scaffold(modifier = Modifier.fillMaxSize()) { innerPadding ->
-                    Greeting(
-                        name = "Android",
-                        modifier = Modifier.padding(innerPadding)
-                    )
+                var socketConnection by remember { mutableStateOf(false) }
+                val scope = rememberCoroutineScope()
+                Box(Modifier.fillMaxSize()) {
+                    App()
+                    AnimatedContent(
+                        targetState = socketConnection,
+                        modifier = Modifier
+                            .align(Alignment.TopEnd)
+                            .safeContentPadding()
+                            .padding(8.dp, 4.dp)
+                            .background(Color.Green, RoundedCornerShape(20.dp)),
+                        label = "Socket"
+                    ) {
+                        if (it) {
+                            Box(
+                                Modifier
+                                    .fillMaxWidth(.6f)
+                                    .height(200.dp)
+                            ) {
+                                Button(
+                                    onClick = {
+                                        scope.launch { socketConnection = false }
+                                    },
+                                    modifier = Modifier.align(Alignment.Center)
+                                ) {
+                                    Text("CLOSE")
+                                }
+                            }
+                        } else {
+                            Box(
+                                Modifier
+                                    .size(40.dp)
+                                    .padding(4.dp)
+                                    .clickable {
+                                        scope.launch {
+                                            socketConnection = true
+                                        }
+                                    }
+                            ) {
+                                Image(
+                                    imageVector = Icons.Default.Settings,
+                                    contentDescription = "Settings",
+                                    modifier = Modifier.size(40.dp)
+                                )
+                            }
+                        }
+                    }
                 }
             }
         }
-        startActivity(
-            Intent(this, PlayerActivity::class.java)
-                .apply {
-                    putExtra("data",Gson().toJson(
-                        MoviePlayerModalUi(
-                            name = "Kraven the Hunter (2024) WEB-DL Dual Audio {Hindi-English}",
-                            links = listOf(
-                                LinkPair(
-                                    "480 P",
-                                    "480 p Hindi 620MB",
-                                    "https://pixeldra.in/api/file/D3pyFtgJ?download"
-                                ),
-                                LinkPair(
-                                    "720 P",
-                                    "720 p Hindi 1.2 GB",
-                                    "https://pixeldra.in/api/file/Yetv6hdp?download"
-                                ),
-                                LinkPair(
-                                    "1080 P",
-                                    "1080 p Hindi 2.4 GB",
-                                    "https://pixeldra.in/api/file/ASWDYLCk?download"
-                                ),LinkPair(
-                                    "2160 P",
-                                    "2160 p Hindi 11 GB",
-                                    "https://video-downloads.googleusercontent.com/ADGPM2lQkzjuY-GAJWHQmAqizw9PYQSlaJlJDFx1dU6kQrwYkcEm-b7MCeqr4WUuBopo-Xd7dMuTRyFhpls9BV21SczNnL3IEDaDV-rQofIaUTs44pMSdeYamNZbcwxeIztAAOkuHNhfa4qp4doKZGWCTWrXDaIGJWugHpPLjSeFLNplXa9LBWw1Qxr_R244mEL_pE8YnihQnUS_alZ9Il5H78jqSDQA8Ihi26bFm0mOotdefMjA56Q"
-                                ),
-                            ),
-                            introTime = TimePair(12000, 24000),
-                            "https://static1.cbrimages.com/wordpress/wp-content/uploads/2023/06/kraven-the-hunter-poster-aaron-taylor-johnson.jpg"
-                        )
-                    ))
-                }
-        )
-        finish()
     }
-}
 
-@Composable
-fun Greeting(name: String, modifier: Modifier = Modifier) {
-    Text(
-        text = "Hello $name!",
-        modifier = modifier
-    )
-}
-
-@Preview(showBackground = true)
-@Composable
-fun GreetingPreview() {
-    FlickFlowTheme {
-        Greeting("Android")
+    @Composable
+    fun App() {
+        val navController = rememberNavController()
+        NavHost(navController, "home") {
+            composable(route = "home") {
+                HomeScreen(
+                    onMovieClicked = { navController.navigate("movies/$it") },
+                    onSeriesClicked = { navController.navigate("series/$it") }
+                )
+            }
+            composable(
+                route = "movies/{id}",
+                arguments = listOf(
+                    navArgument("id") {
+                        type = NavType.StringType
+                    }
+                )) {
+                DetailMoviesScreen(
+                    onBack = { navController.popBackStack() },
+                    onMore = { navController.navigate("movies/$it") })
+            }
+            composable(
+                route = "series/{id}",
+                arguments = listOf(
+                    navArgument("id") {
+                        type = NavType.StringType
+                    }
+                )) {
+                DetailSeriesScreen(
+                    onBack = { navController.popBackStack() },
+                    onMore = { navController.navigate("series/$it") })
+            }
+        }
     }
 }
