@@ -10,6 +10,7 @@ import android.util.Log
 import android.view.HapticFeedbackConstants
 import android.view.TextureView
 import android.view.View
+import android.view.ViewOutlineProvider
 import android.view.WindowInsets
 import android.view.animation.AccelerateInterpolator
 import android.view.animation.DecelerateInterpolator
@@ -22,6 +23,7 @@ import androidx.activity.viewModels
 import androidx.annotation.OptIn
 import androidx.appcompat.app.AppCompatActivity
 import androidx.appcompat.widget.AppCompatSeekBar
+import androidx.compose.ui.graphics.toArgb
 import androidx.core.view.children
 import androidx.core.view.isEmpty
 import androidx.lifecycle.lifecycleScope
@@ -37,6 +39,7 @@ import com.tomer.myflix.presentation.ui.models.TrackInfo
 import com.tomer.myflix.presentation.ui.views.GestureView
 import com.tomer.myflix.presentation.ui.views.SeekBar
 import dagger.hilt.android.AndroidEntryPoint
+import eightbitlab.com.blurview.BlurView
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
@@ -82,9 +85,6 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
         }
         if (!vm.isVMActive)
             vm.setMovieData(data)
-        else {
-//            b.tvSize.visibility=View.GONE
-        }
 
         Log.d("TAG--", "onCreate: ${intent.getStringExtra("data")}")
         enableEdgeToEdge()
@@ -144,7 +144,7 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
     @OptIn(UnstableApi::class)
     override fun onClick(v: View) {
         when (v.id) {
-            b.btBack.id -> onBackPressed()
+            b.btBackBlur.id -> onBackPressed()
 
             b.btPlay.id -> {
                 vm.setPlayState()
@@ -185,8 +185,8 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
 
             }
 
-            b.btSkip.id -> vm.skipIntro(true)
-            b.btImgCloseSkip.id -> vm.skipIntro(false)
+            b.btSkipBlur.id -> vm.skipIntro(true)
+//            b.btSkipCloseBlur.id -> vm.skipIntro(false)
 
             else -> {}
         }
@@ -196,15 +196,51 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
 
     //region SETUP
 
+    private fun BlurView.setup() {
+        this.setupWith(b.blurTarget)
+            .setBlurRadius(16f)
+            .setBlurEnabled(true)
+            .setBlurAutoUpdate(true)
+        this.outlineProvider = ViewOutlineProvider.BACKGROUND
+        this.clipToOutline = true
+    }
+
     @OptIn(UnstableApi::class)
     private fun setupObservers() {
         vm.colAccent.observe(this) { colorAccent ->
             b.seekBar.setAccentColor(colorAccent)
             b.gestureView.setAccentColor(colorAccent)
-            b.chipSpeed.setAccentColor(colorAccent)
-            b.chipSkip.setAccentColor(colorAccent)
-            b.chip2x.setAccentColor(colorAccent)
-            b.chipSkipClose.setAccentColor(colorAccent)
+
+            b.chipSpeedBlur.setup()
+            b.chipSpeedBlur.setOverlayColor(
+                androidx.compose.ui.graphics.Color(colorAccent)
+                    .copy(.32f).toArgb()
+            )
+            b.blur2x.setup()
+            b.blur2x.setOverlayColor(
+                androidx.compose.ui.graphics.Color(colorAccent)
+                    .copy(.12f).toArgb()
+            )
+            b.btBackBlur.setup()
+
+            b.blurSidePanel.setup()
+            b.blurLlSpeed.setup()
+
+            b.progBufferingBlur.setup()
+            b.btPlayBlur.setup()
+            b.btPrevBlur.setup()
+            b.btNextBlur.setup()
+
+            b.btSkipBlur.setup()
+            b.btSkipCloseBlur.setup()
+            b.btSkipBlur.setOverlayColor(
+                androidx.compose.ui.graphics.Color(colorAccent)
+                    .copy(.12f).toArgb()
+            )
+            b.btSkipCloseBlur.setOverlayColor(
+                androidx.compose.ui.graphics.Color(colorAccent)
+                    .copy(.12f).toArgb()
+            )
         }
         vm.isPlaying.observe(this) { isPlay ->
             if (isPlay) {
@@ -215,15 +251,17 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
                         val bmp = t.bitmap ?: continue
                         val bytes = withContext(Dispatchers.Default) {
                             val baos = ByteArrayOutputStream()
-                            cropTo16by9(bmp)
-                                .compress(Bitmap.CompressFormat.WEBP, 60, baos)
+                            val croppedBmp = cropTo16by9(bmp)
+                            croppedBmp.compress(Bitmap.CompressFormat.WEBP, 60, baos)
+                            croppedBmp.recycle()
                             return@withContext baos.toByteArray()
                         }
+                        bmp.recycle()
                         withContext(Dispatchers.IO) {
                             File(
                                 com.tomer.myflix.data.local.file_cache.getCacheDir(
                                     this@PlayerActivity,
-                                    vm.movieModel.flickId
+                                    vm.modelPLayerUI.flickId
                                 ), "poster.webp"
                             ).outputStream()
                                 .buffered().use {
@@ -245,7 +283,7 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
             else hideUI()
         }
         vm.isBuffering.observe(this) {
-            b.progBuffering.visibility = if (it) View.VISIBLE else View.GONE
+            b.progBufferingBlur.visibility = if (it) View.VISIBLE else View.GONE
             b.btPlay.visibility = if (!it) View.VISIBLE else View.INVISIBLE
         }
         vm.playerState.observe(this) { state ->
@@ -253,7 +291,7 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
                 PlayingState.INITIAL -> {
                     lifecycleScope.launch {
                         val bmp: Bitmap? = try {
-                            vm.movieModel.poster.urlToBitmap(this@PlayerActivity)
+                            vm.modelPLayerUI.poster.urlToBitmap(this@PlayerActivity)
                         } catch (_: Exception) {
                             null
                         }
@@ -293,8 +331,8 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
         vm.isSidePanel.observe(this) {
             if (it == null) return@observe
             if (it.first == 0) {
-                b.sidePanel.animate().apply {
-                    val width = b.sidePanel.width.toFloat()
+                b.blurSidePanel.animate().apply {
+                    val width = b.blurSidePanel.width.toFloat()
                     translationX(width.plus(width.times(.2f)))
                     duration = 400
                     start()
@@ -307,19 +345,19 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
                 2 -> loadAudioPanel(it.second)
                 3 -> loadSubPanel(it.second)
             }
-            b.sidePanel.animate().apply {
+            b.blurSidePanel.animate().apply {
                 translationX(0f)
                 interpolator = OvershootInterpolator(1.2f)
                 start()
             }
         }
         vm.isSpeed.observe(this) {
-            if (it == true) b.llSpeed.animate().apply {
+            if (it == true) b.blurLlSpeed.animate().apply {
                 translationX(0f)
                 start()
             } else if (it == false) {
-                b.llSpeed.animate().apply {
-                    val width = b.llSpeed.width.toFloat()
+                b.blurLlSpeed.animate().apply {
+                    val width = b.blurLlSpeed.width.toFloat()
                     translationX(width.plus(width.times(.2f)))
                     start()
                 }
@@ -330,25 +368,25 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
 
         vm.isSkip.observe(this) {
             if (it) {
-                b.btSkip.animate().apply {
+                b.btSkipBlur.animate().apply {
                     translationX(0f)
                     interpolator = OvershootInterpolator(1.4f)
                     start()
                 }
-                b.btSkipClose.animate().apply {
+                b.btSkipCloseBlur.animate().apply {
                     translationX(0f)
                     interpolator = OvershootInterpolator(2f)
                     startDelay = 100
                     start()
                 }
             } else {
-                b.btSkip.animate().apply {
+                b.btSkipBlur.animate().apply {
                     translationX(280.toPX())
                     interpolator = AccelerateInterpolator()
                     startDelay = 100
                     start()
                 }
-                b.btSkipClose.animate().apply {
+                b.btSkipCloseBlur.animate().apply {
                     translationX(320.toPX())
                     interpolator = DecelerateInterpolator()
                     start()
@@ -385,9 +423,14 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
     }
 
     @OptIn(UnstableApi::class)
+    fun clickClose(v: View) {
+        vm.skipIntro(false)
+    }
+
+    @OptIn(UnstableApi::class)
     private fun setupPlayerControls() {
-        b.tvName.text = vm.movieModel.name
-        b.btBack.setOnClickListener(this)
+        b.tvName.text = vm.modelPLayerUI.name.substring(6)
+        b.btBackBlur.setOnClickListener(this)
         b.btPlay.setOnClickListener(this)
         b.btNext.setOnClickListener(this)
         b.btPrev.setOnClickListener(this)
@@ -398,7 +441,8 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
 
         b.btVideoQuality.setOnClickListener(this)
         b.btSpeed.setOnClickListener(this)
-        b.btSkip.setOnClickListener(this)
+        b.btSkipBlur.setOnClickListener(this)
+//        b.btSkipCloseBlur.setOnClickListener(this)
 
         b.seekBar.setOnSeekBarChangeListener(object : SeekBar.OnSeekChanged {
             override fun onStartTrackingTouch() {
@@ -469,7 +513,7 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
 
             override fun onLongPress(isDown: Boolean) {
                 vm.exoPlayer.setPlaybackSpeed(if (isDown) 2f else vm.playSpeed)
-                b.ll2xHelper.visibility = if (isDown) View.VISIBLE else View.GONE
+                b.blur2x.visibility = if (isDown) View.VISIBLE else View.GONE
             }
 
             override fun requestVolSync() {
@@ -686,10 +730,10 @@ class PlayerActivity : AppCompatActivity(), View.OnClickListener {
             return df.format(value)
         }
         if (vm.playSpeed == 1f) {
-            b.chipSpeed.visibility = View.GONE
+            b.chipSpeedBlur.visibility = View.GONE
             b.tvSpeed.visibility = View.GONE
         } else {
-            b.chipSpeed.visibility = View.VISIBLE
+            b.chipSpeedBlur.visibility = View.VISIBLE
             b.tvSpeed.visibility = View.VISIBLE
             formatFloat(vm.playSpeed).also {
                 b.tvSpeed.text = it
