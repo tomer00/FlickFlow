@@ -7,14 +7,13 @@ import android.graphics.Bitmap
 import android.graphics.Color
 import android.graphics.drawable.BitmapDrawable
 import android.os.Build
-import android.util.Log
 import android.view.HapticFeedbackConstants
 import android.view.View
 import androidx.palette.graphics.Palette
 import coil.ImageLoader
 import coil.request.ImageRequest
 import coil.request.SuccessResult
-import com.tomer.myflix.presentation.ui.models.BuilderMoviePresentation
+import com.tomer.myflix.presentation.ui.models.BuilderPlayablePresentation
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.Locale
@@ -84,7 +83,34 @@ suspend fun String.urlToBitmap(con: Context): Bitmap {
     }
 }
 
-fun getSampleVideoModel() = BuilderMoviePresentation(
+fun getSampleVideoModel() = BuilderPlayablePresentation(
     id = "ivqtjv", name = "Kuch Bhi Name",
     poster = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ3mNRv_ktQx8yYdbTQzz7KN2EydERqgwMkx0KWXs2-X__DUaglPAYOvodR&s=10",
 ).build()
+
+
+fun cropTo16by9(bitmap: Bitmap): Bitmap {
+    val width = bitmap.width
+    val height = bitmap.height
+
+    // Desired aspect ratio
+    val targetRatio = 16f / 9f
+    val currentRatio = width.toFloat() / height.toFloat()
+
+    var newWidth = width
+    var newHeight = height
+    var xOffset = 0
+    var yOffset = 0
+
+    if (currentRatio > targetRatio) {
+        // Image is too wide → crop width
+        newWidth = (height * targetRatio).toInt()
+        xOffset = (width - newWidth) / 2
+    } else if (currentRatio < targetRatio) {
+        // Image is too tall → crop height
+        newHeight = (width / targetRatio).toInt()
+        yOffset = (height - newHeight) / 2
+    }
+
+    return Bitmap.createBitmap(bitmap, xOffset, yOffset, newWidth, newHeight)
+}
