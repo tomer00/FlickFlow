@@ -6,18 +6,19 @@ import com.tomer.myflix.data.local.room.DaoPlaying
 import com.tomer.myflix.data.local.room.DaoSettings
 import com.tomer.myflix.data.models.TimePair
 import com.tomer.myflix.data.remote.repo.RepoRemote
-import com.tomer.myflix.presentation.ui.models.BuilderMoviePresentation
+import com.tomer.myflix.presentation.ui.models.BuilderPlayablePresentation
 import com.tomer.myflix.presentation.ui.models.ModelPLayerUI
 import javax.inject.Inject
 
 interface RepoEpisode {
+    suspend fun canPlay(flickId: String): Boolean
     suspend fun getEpisodeModelPresentation(id: String): ModelPLayerUI
     suspend fun getEpisodeModel(id: String, imdbId: String = ""): Result<ModelEpisode>
-    suspend fun canPlay(flickId: String): Boolean
 }
 
 class RepoEpisodeImpl @Inject constructor(
     private val daoSettings: DaoSettings,
+    private val repoSeries: RepoSeries,
     private val daoPlaying: DaoPlaying,
     private val repoRemote: RepoRemote
 ) : RepoEpisode {
@@ -27,15 +28,18 @@ class RepoEpisodeImpl @Inject constructor(
 
         val episodeModel = daoPlaying.getEpisodeFromId(id)
         if (episodeModel != null) {
-            val seriesPoster =
-                daoPlaying.getHoriPosterOfSeries(episodeModel.seriesFlickId)
-                    ?: getDefaultHoriPoster()
-            return BuilderMoviePresentation(
-                id, episodeModel.title, episodeModel.introTime, seriesPoster
+            val seriesMod = repoSeries.getSeriesModel(episodeModel.seriesFlickId).getOrNull()
+            val name = if (seriesMod == null) episodeModel.title
+            else "${seriesMod.title}\n${episodeModel.title}"
+            return BuilderPlayablePresentation(
+                id,
+                "${episodeModel.seriesFlickId}S${episodeModel.season}:E${episodeModel.episode} $name",
+                episodeModel.introTime,
+                episodeModel.posterHorizontal
             ).build().also { daoSettings.savePlayerUI(it) }
         }
 
-        return BuilderMoviePresentation(
+        return BuilderPlayablePresentation(
             id, "Unknown", TimePair(0L, 0L), getDefaultHoriPoster()
         ).build()
     }
@@ -51,5 +55,4 @@ class RepoEpisodeImpl @Inject constructor(
     }
 
     override suspend fun canPlay(flickId: String) = repoRemote.getCanPlay(flickId, false)
-
 }
