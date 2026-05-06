@@ -6,7 +6,7 @@ import com.tomer.myflix.data.local.room.DaoPlaying
 import com.tomer.myflix.data.local.room.DaoSettings
 import com.tomer.myflix.data.models.TimePair
 import com.tomer.myflix.data.remote.repo.RepoRemote
-import com.tomer.myflix.presentation.ui.models.BuilderMoviePresentation
+import com.tomer.myflix.presentation.ui.models.BuilderPlayablePresentation
 import com.tomer.myflix.presentation.ui.models.ModelPLayerUI
 import javax.inject.Inject
 
@@ -26,17 +26,16 @@ class RepoMoviesImpl @Inject constructor(
         val modUI = daoSettings.getPlayerUi(id)
         if (modUI != null) return modUI
 
-        //try if it was a movie
         val movieModel = daoPlaying.getMovieFromId(id)
         if (movieModel != null) {
-            return BuilderMoviePresentation(
-                id, movieModel.title, movieModel.introTime,
+            return BuilderPlayablePresentation(
+                id, "$id${movieModel.title}", movieModel.introTime,
                 movieModel.posterHorizontal,
                 colorAccent = movieModel.accentCol
             ).build().also { daoSettings.savePlayerUI(it) }
         }
 
-        return BuilderMoviePresentation(
+        return BuilderPlayablePresentation(
             id, "Unknown", TimePair(0L, 0L), getDefaultHoriPoster()
         ).build()
     }
