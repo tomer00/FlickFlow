@@ -20,9 +20,12 @@ import androidx.media3.exoplayer.ExoPlayer
 import androidx.media3.exoplayer.source.DefaultMediaSourceFactory
 import androidx.media3.exoplayer.trackselection.DefaultTrackSelector
 import com.tomer.myflix.data.local.file_cache.CacheInterceptor
+import com.tomer.myflix.data.local.models.ModelLastPlayed
+import com.tomer.myflix.data.local.repo.RepoEpisode
 import com.tomer.myflix.data.local.repo.RepoMovies
 import com.tomer.myflix.data.local.repo.RepoSettings
 import com.tomer.myflix.data.local.repo.TrackType
+import com.tomer.myflix.presentation.ui.models.BuilderPlayablePresentation
 import com.tomer.myflix.presentation.ui.models.DtoPlayerView
 import com.tomer.myflix.presentation.ui.models.ModelPLayerUI
 import com.tomer.myflix.presentation.ui.models.PlayingType
@@ -45,6 +48,7 @@ class PlayerViewModel
 @Inject constructor(
     @param:ApplicationContext val appContext: Context,
     private val repoMovies: RepoMovies,
+    private val repoEpisode: RepoEpisode,
     private val repoSettings: RepoSettings,
 ) : ViewModel() {
 
@@ -123,7 +127,7 @@ class PlayerViewModel
                 _isSidePanel.postValue(
                     1 to getVideoTrackInfo(
                         trackSelector.currentMappedTrackInfo!!,
-                        movieModel.videoTrack
+                        modelPLayerUI.videoTrack
                     )
                 )
             }
@@ -182,25 +186,37 @@ class PlayerViewModel
 
     private var seekBarSyncJob = viewModelScope.launch { }
 
-    var movieModel: ModelPLayerUI = getSampleVideoModel()
+    var modelPLayerUI: ModelPLayerUI = getSampleVideoModel()
+    var playingType = PlayingType.MOVIE
     fun setMovieData(data: DtoPlayerView) {
         isVMActive = true
+        playingType = data.type
         viewModelScope.launch {
-            movieModel = repoMovies.getMovieModelPresentation(data.id)
+            modelPLayerUI = if (playingType == PlayingType.MOVIE)
+                repoMovies.getMovieModelPresentation(data.id)
+            else if (playingType == PlayingType.EPISODE)
+                repoEpisode.getEpisodeModelPresentation(data.id)
+            else {
+                repoSettings.setSaveMode(false)
+                BuilderPlayablePresentation(
+                    id = "ivqtjv", name = "Kuch Bhi Name",
+                    poster = "https://encrypted-tbn0.gstatic.com/images?q=tbn:ANd9GcQ3mNRv_ktQx8yYdbTQzz7KN2EydERqgwMkx0KWXs2-X__DUaglPAYOvodR&s=10",
+                ).build()
+            }
             exoPlayer.apply {
                 if (data.type != PlayingType.LINK)
-                    setMediaItem(MediaItem.fromUri(getVideoLink(movieModel.flickId)))
+                    setMediaItem(MediaItem.fromUri(getVideoLink(modelPLayerUI.flickId)))
                 else setMediaItem(MediaItem.fromUri(data.link))
                 prepare()
                 playWhenReady = true
             }
-            _colAccent.postValue(movieModel.accentCol)
-            currFitType = movieModel.scaleType
+            _colAccent.postValue(modelPLayerUI.accentCol)
+            currFitType = modelPLayerUI.scaleType
             if (data.type != PlayingType.LINK) {
                 cacheInterceptor.setId(data.id)
                 repoSettings.setCurrentId(data.id)
             }
-            _seekBarPosition.postValue(movieModel.seekPosition to 0f)
+            _seekBarPosition.postValue(modelPLayerUI.seekPosition to 0f)
         }
     }
 
@@ -224,19 +240,19 @@ class PlayerViewModel
                     Player.STATE_READY -> {
                         if (_playState.value == PlayingState.INITIAL) {
                             viewModelScope.launch {
-                                movieModel.videoTrack?.let {
+                                modelPLayerUI.videoTrack?.let {
                                     selectVideoTrack(it)
                                 }
-                                movieModel.audioTrack?.let { selectAudioTrack(it) }
-                                movieModel.subtitleTrack?.let { selectSubtitleTrack(it) }
+                                modelPLayerUI.audioTrack?.let { selectAudioTrack(it) }
+                                modelPLayerUI.subtitleTrack?.let { selectSubtitleTrack(it) }
                             }
-                            val seekPosPrev5Sec = (movieModel.playedMs - 5000).coerceAtLeast(0L)
+                            val seekPosPrev5Sec = (modelPLayerUI.playedMs - 5000).coerceAtLeast(0L)
                             if (seekPosPrev5Sec > 2000)
                                 exoPlayer.seekTo(seekPosPrev5Sec)
                             _playState.postValue(PlayingState.LOADED)
                                 .also {
                                     if (_isControls.value == false)
-                                        exoPlayer.play()
+                                        exoPlayer.play().also { retries = 0 }
                                 }
                         }
 
@@ -260,20 +276,20 @@ class PlayerViewModel
                 _isPlaying.postValue(isPlaying)
                 if (_playState.value != PlayingState.PLAYING) {
                     _playState.postValue(PlayingState.PLAYING)
-                    if (exoPlayer.currentPosition >= movieModel.introTime.endTime) return
-                    if (movieModel.introTime.endTime == 0L) return
+                    if (exoPlayer.currentPosition >= modelPLayerUI.introTime.endTime) return
+                    if (modelPLayerUI.introTime.endTime == 0L) return
                     skipTimerScope.cancel()
-                    if (exoPlayer.currentPosition <= movieModel.introTime.startTime)
+                    if (exoPlayer.currentPosition <= modelPLayerUI.introTime.startTime)
                         skipTimerScope.launch {
-                            delay(movieModel.introTime.startTime - exoPlayer.currentPosition)
+                            delay(modelPLayerUI.introTime.startTime - exoPlayer.currentPosition)
                             _isSkip.postValue(true)
-                            delay(movieModel.introTime.endTime - movieModel.introTime.startTime)
+                            delay(modelPLayerUI.introTime.endTime - modelPLayerUI.introTime.startTime)
                             _isSkip.postValue(false)
                         }
                     else {
                         _isSkip.postValue(true)
                         skipTimerScope.launch {
-                            delay(movieModel.introTime.endTime - exoPlayer.currentPosition)
+                            delay(modelPLayerUI.introTime.endTime - exoPlayer.currentPosition)
                             _isSkip.postValue(false)
                         }
                     }
@@ -308,8 +324,9 @@ class PlayerViewModel
 
 
     fun skipIntro(skip: Boolean) {
+        Log.d("TAG--", "skipIntro: $skip")
         _isSkip.postValue(false)
-        if (skip) exoPlayer.seekTo(movieModel.introTime.endTime)
+        if (skip) exoPlayer.seekTo(modelPLayerUI.introTime.endTime)
     }
 
     fun skipForward(millis: Long) {
@@ -345,6 +362,13 @@ class PlayerViewModel
         repoSettings.savePlayedMsAndSeekPos(
             exoPlayer.currentPosition, _seekBarPosition.value!!.first
         )
+        repoSettings.saveLastPlayed(
+            ModelLastPlayed(
+                0, modelPLayerUI.flickId,
+                modelPLayerUI.name, _seekBarPosition.value!!.first,
+                modelPLayerUI.accentCol, playingType == PlayingType.MOVIE
+            )
+        )
     }
 
     private fun createSeekBarSyncJob(): Job {
@@ -371,7 +395,7 @@ class PlayerViewModel
 
     fun selectVideoTrack(trackInfo: TrackInfo) {
         _isSidePanel.postValue(0 to listOf())
-        movieModel.videoTrack = trackInfo
+        modelPLayerUI.videoTrack = trackInfo
         repoSettings.saveTrackInfo(TrackType.VIDEO, trackInfo)
         val mappedTrackInfo = trackSelector.currentMappedTrackInfo ?: return
         val videoTrackInfo = trackInfo
@@ -407,7 +431,7 @@ class PlayerViewModel
 
     fun selectAudioTrack(trackInfo: TrackInfo?) {
         _isSidePanel.postValue(0 to listOf())
-        movieModel.audioTrack = trackInfo
+        modelPLayerUI.audioTrack = trackInfo
         repoSettings.saveTrackInfo(TrackType.AUDIO, trackInfo)
         val mappedTrackInfo = trackSelector.currentMappedTrackInfo ?: return
         val audioTrackInfo = trackInfo ?: run {
@@ -451,7 +475,7 @@ class PlayerViewModel
     @OptIn(UnstableApi::class)
     fun selectSubtitleTrack(trackInfo: TrackInfo?) {
         _isSidePanel.postValue(0 to listOf())
-        movieModel.subtitleTrack = trackInfo
+        modelPLayerUI.subtitleTrack = trackInfo
         repoSettings.saveTrackInfo(TrackType.SUBTITLE, trackInfo)
         val mappedTrackInfo = trackSelector.currentMappedTrackInfo ?: return
         val subTitleTrackInfo = trackInfo ?: run {
